@@ -11,7 +11,7 @@ _Last updated: 2026-11-14 (LIT Awards import)_
 | **Current phase** | Browser build with Library, meaning-search, `.bo` files, menu bar and LIT Awards import done; next: verify the LIT import on the Mac, then lighting-technique eval (sigmoid scoring, LIT photos as eval data), 500-image canvas check, Tauri shell |
 | **App** | Runs with `npm run dev` (port 5173). Boards, infinite canvas, notes, bento mode, Library (Category / Type / Colour / Award / All tabs, stacks, semantic search), colour + type + custom-category tags, `.bo` save/open, menu bar, collapsible sidebar, File > Import from LIT Awards (needs the dev server), Mocha/Latte theme |
 | **Tests** | 38 Vitest tests (colour, viewport, bento layout, type picking, library grouping, search, `.bo`, LIT parsers) + Playwright smoke scripts in `scripts/`. 27 passed at the last full run; the 11 LIT tests were checked only under plain Node, **run `npm test` + `npm run typecheck` on the Mac** |
-| **Hosting** | GitHub `blondeuser/Board` (public). Latest commit `51971cf` (menu bar + sidebar); LIT import not committed yet |
+| **Hosting** | GitHub `blondeuser/Board` (public). Latest commit `a97360e` |
 
 ## Resume here (next session)
 
@@ -120,23 +120,23 @@ _Last updated: 2026-11-14 (LIT Awards import)_
 ## Log
 
 ### 2026-11-14 (bug pass)
-- Typecheck + 38 tests pass on the Mac. Fixed: Del/Backspace while a `<select>` (e.g. Inspector "+ Type") was focused removed the selected cards from the board; board-delete confirm wrongly said images are deleted (they stay in the Library). Not committed.
+- Typecheck + 38 tests pass on the Mac. Fixed: Del/Backspace while a `<select>` (e.g. Inspector "+ Type") was focused removed the selected cards from the board; board-delete confirm wrongly said images are deleted (they stay in the Library). Committed in a97360e.
 - Added File > Clear Everything… (confirm, then `db.clearAll()` + reload): wipes boards, images, thumbnails, notes, categories. Keeps the downloaded image model. Typecheck + tests pass; not yet clicked through in the browser.
-- Free layout: select exactly 2 cards, click the link button (toolbar, top-left) to draw a curved line; click again to remove. `Connection` type, IndexedDB v3 store `connections`, `src/canvas/connector.ts` (+3 tests), lines drawn under the cards and follow drags; removing a card or board drops its lines. **Not in `.bo` yet** (lines are lost on save/open; needs a format change, see `docs/BO_FORMAT.md`). Typecheck + 41 tests pass; not yet checked in the browser. Not committed.
-- Free layout: bottom bar (above the zoom bar) now holds the link button plus shape tools (rectangle, circle/ellipse, triangle, diamond): pick a tool, drag on the canvas (Shift = equal sides, Esc cancels). Shapes are `Placement` kind `shape` (move, free resize, colour in the inspector, can be linked; saved in `.bo`; hidden in cards mode). Typecheck + 42 tests pass; not yet checked in the browser. Not committed.
+- Free layout: select exactly 2 cards, click the link button (toolbar, top-left) to draw a curved line; click again to remove. `Connection` type, IndexedDB v3 store `connections`, `src/canvas/connector.ts` (+3 tests), lines drawn under the cards and follow drags; removing a card or board drops its lines. **Not in `.bo` yet** (lines are lost on save/open; needs a format change, see `docs/BO_FORMAT.md`). Typecheck + 41 tests pass; not yet checked in the browser. Committed in a97360e.
+- Free layout: bottom bar (above the zoom bar) now holds the link button plus shape tools (rectangle, circle/ellipse, triangle, diamond): pick a tool, drag on the canvas (Shift = equal sides, Esc cancels). Shapes are `Placement` kind `shape` (move, free resize, colour in the inspector, can be linked; saved in `.bo`; hidden in cards mode). Typecheck + 42 tests pass; not yet checked in the browser. Committed in a97360e.
 
 ### 2026-11-14 (JPEG export)
-- Select images (board or Library) and export the originals as JPEG: download button in the Inspector, or File > Export Selected as JPEG…. One image gives `image.jpg`, several give `images.zip` (`exportJpeg` in `useBoardApp`; quality 0.92, transparent areas become white). Checked in Chrome (zip of 2, single via menu, valid JPEG); typecheck passes. Not committed.
+- Select images (board or Library) and export the originals as JPEG: download button in the Inspector, or File > Export Selected as JPEG…. One image gives `image.jpg`, several give `images.zip` (`exportJpeg` in `useBoardApp`; quality 0.92, transparent areas become white). Checked in Chrome (zip of 2, single via menu, valid JPEG); typecheck passes. Committed in a97360e.
 
 ### 2026-11-14 (LIT Awards import)
 - File > Import from LIT Awards…: pick edition + award categories + photos per project, downloads winners' photos into the library with credits (`Asset.source`), optional new board. `src/sources/lit/{parse,client,source}.ts`, `src/app/useLitImport.ts`, `src/ui/LitImportDialog.tsx`; dev-server proxy `/__lit` in `vite.config.ts` (site and photo bucket send no CORS headers). Search includes source credits; Library tab "Award" groups by award category; inspector shows Source. `importBlobs` gained `opts.sources/quiet` and returns ids; `createBoard(name)`.
-- Parsers checked against live pages: 2025 (334 projects, 68 categories, ~11 photos each), 2019 (102), 2017 (152, older photo URLs). New `tests/lit.test.ts` + fixtures in `tests/fixtures/lit/`. Parser assertions passed under plain Node; **`npm test`, `npm run typecheck` and a real import in the browser not run yet** (Mac-only binaries in node_modules). Not committed.
+- Parsers checked against live pages: 2025 (334 projects, 68 categories, ~11 photos each), 2019 (102), 2017 (152, older photo URLs). New `tests/lit.test.ts` + fixtures in `tests/fixtures/lit/`. Parser assertions passed under plain Node; **`npm test`, `npm run typecheck` and a real import in the browser not run yet** (Mac-only binaries in node_modules). Committed in a97360e.
 
 ### 2026-11-14 (collapsible sidebar)
-- Left sidebar can be hidden: toggle button in the menu bar, View > Hide/Show Sidebar, Cmd/Ctrl+\\. Hidden = auto-hide: moving the mouse to the left edge slides it over the canvas, it hides ~250 ms after the mouse leaves. Choice remembered (`board.sidebar` in localStorage). Layout: `.app > .menubar + .shell`, sidebar in `.side`; `App.tsx` holds the state. Checked in Chrome (collapse, edge hover, hide, reload, shortcut); typecheck + 27 tests pass. Not committed.
+- Left sidebar can be hidden: toggle button in the menu bar, View > Hide/Show Sidebar, Cmd/Ctrl+\\. Hidden = auto-hide: moving the mouse to the left edge slides it over the canvas, it hides ~250 ms after the mouse leaves. Choice remembered (`board.sidebar` in localStorage). Layout: `.app > .menubar + .shell`, sidebar in `.side`; `App.tsx` holds the state. Checked in Chrome (collapse, edge hover, hide, reload, shortcut); typecheck + 27 tests pass. Committed in a97360e.
 
 ### 2026-11-14 (menu bar)
-- macOS-style menu bar on top (`src/ui/MenuBar.tsx`): Board | File > New Board, Open…, Save (Cmd/Ctrl+S), Save As… (Shift+Cmd/Ctrl+S). Save writes to the file picked earlier for that board (File System Access API, Chromium); Save As always asks; browsers without the picker download instead. Remembered file is lost on reload. `exportBoard` became `saveBoard`/`saveBoardAs` in `useBoardApp`. Checked in Chrome with a stubbed picker (menu, Save As, Cmd+S); typecheck + 27 tests pass. Not committed.
+- macOS-style menu bar on top (`src/ui/MenuBar.tsx`): Board | File > New Board, Open…, Save (Cmd/Ctrl+S), Save As… (Shift+Cmd/Ctrl+S). Save writes to the file picked earlier for that board (File System Access API, Chromium); Save As always asks; browsers without the picker download instead. Remembered file is lost on reload. `exportBoard` became `saveBoard`/`saveBoardAs` in `useBoardApp`. Checked in Chrome with a stubbed picker (menu, Save As, Cmd+S); typecheck + 27 tests pass. Committed in a97360e.
 
 ### 2026-11-14 (.bo export/import)
 - Save a board as `.bo` (ZIP with all original image files) and open one again: `src/storage/bo/{write,read,hash}.ts`, buttons in the sidebar Boards header, `exportBoard`/`importBo` in `useBoardApp`. Added dependency `fflate` (named in the spec). `Asset.hash` added. 5 new tests (27 total). Typecheck + tests pass; **not tried in a browser yet**. Commit `628b436`.
@@ -148,40 +148,40 @@ _Last updated: 2026-11-14 (LIT Awards import)_
 - Answered where the model is fetched/stored (huggingface.co + cdn.jsdelivr.net, then browser Cache Storage; images never leave the PC) and how to extend models (see Decisions). Researched lighting design techniques and feasibility of auto-detecting them; notes in `MEMORY.md`. No code changed. Dev server still running on 5173 (background task).
 
 ### 2026-11-14 (search by meaning)
-- Library search now understands meaning: SigLIP image + text embeddings in the worker (`src/categorize/style/{model,search,classifier,classify.worker}.ts`), `embedding`/`embeddingModel` on `Asset`, `searchPending` flag, whole-word tag matching with stop words. Model picked by measurement (`scripts/eval-search.mjs`, 15 photos, 9 queries): CLIP B/32 returned ~37 wrong results for 15 right ones (people queries were near-random), B/16 ~32, SigLIP 7 wrong / 13 right. Download is ~210 MB once. Also fixed: the analysis status pill was missing in the Library. Not committed.
+- Library search now understands meaning: SigLIP image + text embeddings in the worker (`src/categorize/style/{model,search,classifier,classify.worker}.ts`), `embedding`/`embeddingModel` on `Asset`, `searchPending` flag, whole-word tag matching with stop words. Model picked by measurement (`scripts/eval-search.mjs`, 15 photos, 9 queries): CLIP B/32 returned ~37 wrong results for 15 right ones (people queries were near-random), B/16 ~32, SigLIP 7 wrong / 13 right. Download is ~210 MB once. Also fixed: the analysis status pill was missing in the Library. Committed in a97360e.
 
 ### 2026-11-14 (Catppuccin)
 - Library search bar made bigger (66px tall, up to 760px wide, 19px text) and borderless: filled pill, no shadow or outline, lightens on focus.
-- Theme tokens are now Catppuccin Mocha (dark, default) and Latte (light) with a sidebar toggle (`src/ui/ThemeToggle.tsx`); note tints and new category colours use the Catppuccin pastels; category chips pick readable text colour (`src/shared/contrast.ts`). Not committed.
+- Theme tokens are now Catppuccin Mocha (dark, default) and Latte (light) with a sidebar toggle (`src/ui/ThemeToggle.tsx`); note tints and new category colours use the Catppuccin pastels; category chips pick readable text colour (`src/shared/contrast.ts`). Committed in a97360e.
 
 ### 2026-11-14 (mymind look)
-- Restyled the whole UI (`src/app/styles.css` rewritten) and added library text search (`query` in `useBoardApp`, `matches`). Library cards now show natural aspect ratios in a masonry. Not committed.
+- Restyled the whole UI (`src/app/styles.css` rewritten) and added library text search (`query` in `useBoardApp`, `matches`). Library cards now show natural aspect ratios in a masonry. Committed in a97360e.
 
 ### 2026-11-14 (library groups)
 - Type and Colour tabs show each group as a fanned stack of up to 4 photos with the title and count under it; click a stack to open its grid below (Select all / Close). Category and All keep titled sections.
 - Group-by is now a visible tab bar (the dropdown was hidden behind the side panel). Type tab: one titled section per type with its cards stacked under it.
-- Library stacked into sections by category/type/colour (`src/library/group.ts`, 3 tests; `scripts/smoke-groups.mjs`). Not committed.
+- Library stacked into sections by category/type/colour (`src/library/group.ts`, 3 tests; `scripts/smoke-groups.mjs`). Committed in a97360e.
 
 ### 2026-11-14 (library)
-- Library view (`src/library/Library.tsx`); `Inspector` now takes explicit props so both views share it. Behaviour change: removing an image from a board or deleting a board no longer deletes the image; only Library delete does. `scripts/smoke-library.mjs`. Not committed.
+- Library view (`src/library/Library.tsx`); `Inspector` now takes explicit props so both views share it. Behaviour change: removing an image from a board or deleting a board no longer deletes the image; only Library delete does. `scripts/smoke-library.mjs`. Committed in a97360e.
 
 ### 2026-11-14 (type detection)
-- Added `@huggingface/transformers`. `src/categorize/style/` (labels + `pickTypes`, worker, client), `Asset.types` (undefined = not detected yet), Type filter + inspector chips, status pill. 4 new tests (15 total); `scripts/smoke-types.mjs` (app screenshot -> Screenshot/UI design, lettering -> Typography/Logo). Not committed.
+- Added `@huggingface/transformers`. `src/categorize/style/` (labels + `pickTypes`, worker, client), `Asset.types` (undefined = not detected yet), Type filter + inspector chips, status pill. 4 new tests (15 total); `scripts/smoke-types.mjs` (app screenshot -> Screenshot/UI design, lettering -> Typography/Logo). Committed in a97360e.
 
 ### 2026-11-14 (perf: thumbnails)
-- IndexedDB v2 adds a `thumbs` store; import makes a 1280px WebP thumbnail, older images get one lazily on first load. `scripts/perf.mjs`, `scripts/smoke-thumbs.mjs`. Not committed.
+- IndexedDB v2 adds a `thumbs` store; import makes a 1280px WebP thumbnail, older images get one lazily on first load. `scripts/perf.mjs`, `scripts/smoke-thumbs.mjs`. Committed in a97360e.
 
 ### 2026-11-14 (bento scroll-only)
-- Cards mode is now vertical-scroll only: fixed zoom fitted to width, centred, y clamped to content. `scripts/smoke-bento-scroll.mjs`. Not committed.
+- Cards mode is now vertical-scroll only: fixed zoom fitted to width, centred, y clamped to content. `scripts/smoke-bento-scroll.mjs`. Committed in a97360e.
 
 ### 2026-11-14 (notes + bento)
-- Note cards and bento cards mode (`src/canvas/bento.ts`, 4 new tests; `scripts/smoke-notes.mjs`). Placement gained optional `kind`/`text`/`tint`, Board gained optional `mode` (no migration needed). Not committed.
+- Note cards and bento cards mode (`src/canvas/bento.ts`, 4 new tests; `scripts/smoke-notes.mjs`). Placement gained optional `kind`/`text`/`tint`, Board gained optional `mode` (no migration needed). Committed in a97360e.
 
 ### 2026-11-14 (later)
-- Marquee select (drag empty space). Pan moved to Space+drag / middle-mouse / scroll. `scripts/smoke-marquee.mjs` added. Not committed.
+- Marquee select (drag empty space). Pan moved to Space+drag / middle-mouse / scroll. `scripts/smoke-marquee.mjs` added. Committed in a97360e.
 
 ### 2026-11-14
-- First draft: scaffold (Vite, React 19, TS, Vitest), custom infinite canvas, paste/drop import, boards sidebar, colour auto-tags + custom categories, filters, IndexedDB persistence. Typecheck, tests and Edge smoke test pass. Not committed.
+- First draft: scaffold (Vite, React 19, TS, Vitest), custom infinite canvas, paste/drop import, boards sidebar, colour auto-tags + custom categories, filters, IndexedDB persistence. Typecheck, tests and Edge smoke test pass. Committed in a97360e.
 - Fixed during testing: StrictMode double-run created two first boards / duplicate category.
 
 ### 2026-11-13
