@@ -3,6 +3,12 @@ import type { Rect, ViewState } from '../shared/types'
 export const MIN_ZOOM = 0.05
 export const MAX_ZOOM = 8
 
+/** Canvas grid size in world units (the background dots). */
+export const GRID = 24
+
+/** Delta that moves `pos` onto the nearest grid line. */
+export const snapDelta = (pos: number, d: number, grid = GRID): number => Math.round((pos + d) / grid) * grid - pos
+
 export const clampZoom = (z: number): number => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z))
 
 export const screenToWorld = (v: ViewState, sx: number, sy: number) => ({

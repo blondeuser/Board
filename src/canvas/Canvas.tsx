@@ -1,6 +1,6 @@
 import { memo, useEffect, useRef, useState, type CSSProperties, type RefObject } from 'react'
 import type { Connection, Placement, ShapeKind, ViewState } from '../shared/types'
-import { clampZoom, screenToWorld, zoomAt } from './viewport'
+import { GRID, clampZoom, screenToWorld, snapDelta, zoomAt } from './viewport'
 import { connectorPath } from './connector'
 import { BENTO_COLUMNS, BENTO_CELL, BENTO_GAP } from './bento'
 
@@ -195,7 +195,15 @@ export function Canvas(props: Props) {
       if (Math.abs(dx) + Math.abs(dy) > 3) d.moved = true
       if (!d.moved) return
       const patch: Record<string, Partial<Placement>> = {}
-      d.origs.forEach((o, id) => (patch[id] = { x: o.x + dx / p.view.zoom, y: o.y + dy / p.view.zoom }))
+      let wx = dx / p.view.zoom
+      let wy = dy / p.view.zoom
+      const lead = d.origs.get(d.clickedId)
+      if (lead && !e.altKey) {
+        // Snap the dragged card's corner to the grid; the rest of the selection moves by the same amount. Alt = free move.
+        wx = snapDelta(lead.x, wx)
+        wy = snapDelta(lead.y, wy)
+      }
+      d.origs.forEach((o, id) => (patch[id] = { x: o.x + wx, y: o.y + wy }))
       p.onTransient(patch)
     } else {
       const w = Math.max(24, d.orig.w + dx / p.view.zoom)
@@ -227,7 +235,7 @@ export function Canvas(props: Props) {
   }
 
   const inv = 1 / view.zoom
-  const dots = 24 * view.zoom
+  const dots = GRID * view.zoom
   return (
     <div
       ref={viewportRef}

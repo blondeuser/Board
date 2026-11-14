@@ -19,3 +19,12 @@ describe('viewport', () => {
     expect(p).toEqual([{ x: -50, y: -50 }])
   })
 })
+
+import { snapDelta } from '../src/canvas/viewport'
+describe('snapDelta', () => {
+  it('lands the corner on the grid', () => {
+    expect(10 + snapDelta(10, 30)).toBe(48)
+    expect(0 + snapDelta(0, 11)).toBe(0)
+    expect(-5 + snapDelta(-5, -10)).toBe(-24)
+  })
+})
