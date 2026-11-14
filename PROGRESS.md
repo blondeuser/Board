@@ -6,12 +6,12 @@ _Last updated: 2026-11-14 (LIT Awards import)_
 
 ## Status
 
-| | |
-|---|---|
-| **Current phase** | Browser build with Library, meaning-search, `.bo` files, menu bar and LIT Awards import done; next: verify the LIT import on the Mac, then lighting-technique eval (sigmoid scoring, LIT photos as eval data), 500-image canvas check, Tauri shell |
-| **App** | Runs with `npm run dev` (port 5173). Boards, infinite canvas, notes, bento mode, Library (Category / Type / Colour / Award / All tabs, stacks, semantic search), colour + type + custom-category tags, `.bo` save/open, menu bar, collapsible sidebar, File > Import from LIT Awards (needs the dev server), Mocha/Latte theme |
-| **Tests** | 38 Vitest tests (colour, viewport, bento layout, type picking, library grouping, search, `.bo`, LIT parsers) + Playwright smoke scripts in `scripts/`. 27 passed at the last full run; the 11 LIT tests were checked only under plain Node, **run `npm test` + `npm run typecheck` on the Mac** |
-| **Hosting** | GitHub `blondeuser/Board` (public). Latest commit `a97360e` |
+|                   |                                                                                                                                                                                                                                                                                                                                |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Current phase** | Browser build with Library, meaning-search, `.bo` files, menu bar and LIT Awards import done; next: verify the LIT import on the Mac, then lighting-technique eval (sigmoid scoring, LIT photos as eval data), 500-image canvas check, Tauri shell                                                                             |
+| **App**           | Runs with `npm run dev` (port 5173). Boards, infinite canvas, notes, bento mode, Library (Category / Type / Colour / Award / All tabs, stacks, semantic search), colour + type + custom-category tags, `.bo` save/open, menu bar, collapsible sidebar, File > Import from LIT Awards (needs the dev server), Mocha/Latte theme |
+| **Tests**         | 38 Vitest tests (colour, viewport, bento layout, type picking, library grouping, search, `.bo`, LIT parsers) + Playwright smoke scripts in `scripts/`. 27 passed at the last full run; the 11 LIT tests were checked only under plain Node, **run `npm test` + `npm run typecheck` on the Mac**                                |
+| **Hosting**       | GitHub `blondeuser/Board` (public). Latest commit `a97360e`                                                                                                                                                                                                                                                                    |
 
 ## Resume here (next session)
 
@@ -118,6 +118,12 @@ _Last updated: 2026-11-14 (LIT Awards import)_
 | 2026-11-14 | Imported images carry `Asset.source` (link, title, categories, credit, details) instead of auto-creating custom categories | 68 award categories per year would flood the sidebar; source data stays searchable and groupable (Award tab) and keeps photographer credits |
 
 ## Log
+
+### 2026-11-14 (themes, space tags, menus, bulk export)
+- **Concrete / Concrete Dark themes** (flat sage-grey and blue-slate, square boxes, hairline edges, black/light hover; title bars on Inspector and dialogs, mono group labels, crop marks on the empty board; after typesafe.ai). Concrete is the default; the sidebar button cycles Concrete → Concrete Dark → Latte → Mocha.
+- **Finer type tags** for architecture and interior photos (facade, atrium, high ceiling, bedroom, reception, corridor, …; `SPACE_LABELS` in `categorize/style/labels.ts`): one softmax per parent group in the worker, `pickSpaces`, `Asset.spacesVersion` so existing images are re-analysed once (bump `SPACES_VERSION` when labels change). **Accuracy not measured on real photos yet**; thresholds (0.3, max 2) are guesses. Softmax inside a group, not sigmoid; revisit if labels hide each other.
+- Link icon on cards that came from a web address (opens the page). Sidebar colour swatches show the library's real colour per family (`familyShades`). Type and Categories moved from the sidebar into the menu bar (ticks, stay open, × deletes a category). Library: drag-box bulk select, right-click menu (Export as JPEG, Select all/none, Delete); board right-click gets Export as JPEG.
+- Tests: 55 pass, typecheck clean. UI checked with Playwright screenshots on the empty board, one selected image and the Library with 4 test images; Type menu with real types, Latte/Mocha and the dialogs were not re-checked. Committed in the same session.
 
 ### 2026-11-14 (grid snap + link thumbnails)
 - Dragging cards snaps the dragged card's corner to the 24-unit grid (`snapDelta`/`GRID` in `canvas/viewport.ts`; Alt = free; resize and shapes don't snap). Pasting or dropping a web address now adds the page's preview image (og:image / twitter:image / apple-touch-icon) as an image card with `source` = site, page URL, title, so the Inspector links back: `src/sources/link/{parse,client}.ts`, dev-server proxy `/__link` in `vite.config.ts` (http(s) only, refuses non-public addresses incl. via redirects; replaced by the Tauri HTTP plugin later). Image addresses go through the same path. Tests: 52 pass, typecheck clean; proxy checked with curl (apple.com ok, localhost/LAN refused, page without image gives a message); **not tried in the browser UI yet**. No menu item yet (paste/drop only). Not committed.
