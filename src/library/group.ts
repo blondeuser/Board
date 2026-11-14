@@ -2,7 +2,8 @@ import type { Asset, Category } from '../shared/types'
 import { COLOR_FAMILIES } from '../categorize/color'
 import { ALL_TYPE_LABELS } from '../categorize/style/labels'
 
-export type GroupBy = 'none' | 'category' | 'type' | 'color' | 'source'
+/** 'date' = one section per month (MM/YY) of the import date; the Library uses it for the All tab. */
+export type GroupBy = 'none' | 'date' | 'category' | 'type' | 'color' | 'source'
 
 export interface Group {
   key: string
@@ -15,6 +16,17 @@ export interface Group {
 /** Split assets into stacked sections. An image with several tags appears in each of its sections; untagged ones go last. */
 export function groupAssets(assets: Asset[], by: GroupBy, categories: Category[]): Group[] {
   if (by === 'none') return [{ key: 'all', name: 'All', items: assets }]
+  if (by === 'date') {
+    const months = new Map<string, Group>()
+    for (const a of [...assets].sort((x, y) => y.createdAt - x.createdAt)) {
+      const d = new Date(a.createdAt)
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+      const g = months.get(key) ?? { key, name: `${key.slice(5)}/${key.slice(2, 4)}`, items: [] }
+      g.items.push(a)
+      months.set(key, g)
+    }
+    return [...months.values()]
+  }
 
   const sourceCats = by === 'source' ? [...new Set(assets.flatMap((a) => a.source?.categories ?? []))].sort((x, y) => x.localeCompare(y)) : []
   const defs: { key: string; name: string; color?: string; has: (a: Asset) => boolean }[] =

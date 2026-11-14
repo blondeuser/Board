@@ -26,3 +26,13 @@ describe('groupAssets', () => {
     expect(groupAssets(assets, 'none', cats)).toHaveLength(1)
   })
 })
+
+import { groupAssets as groupByDate } from '../src/library/group'
+describe('date groups', () => {
+  it('makes one MM/YY section per month, newest first', () => {
+    const at = (id: string, y: number, m: number, d: number) => ({ id, createdAt: new Date(y, m - 1, d).getTime() }) as never
+    const g = groupByDate([at('a', 2026, 9, 3), at('b', 2026, 11, 14), at('c', 2026, 11, 2), at('d', 2025, 12, 31)], 'date', [])
+    expect(g.map((x) => x.name)).toEqual(['11/26', '09/26', '12/25'])
+    expect(g[0].items.map((i) => i.id)).toEqual(['b', 'c'])
+  })
+})

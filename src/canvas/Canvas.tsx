@@ -3,6 +3,7 @@ import type { Connection, Placement, ShapeKind, ViewState } from '../shared/type
 import { GRID, clampZoom, screenToWorld, snapDelta, zoomAt } from './viewport'
 import { connectorPath } from './connector'
 import { LinkIcon } from '../ui/icons'
+import { openExternal } from '../shared/external'
 import { BENTO_COLUMNS, BENTO_CELL, BENTO_GAP } from './bento'
 
 const BENTO_PAD = 40
@@ -118,7 +119,7 @@ export function Canvas(props: Props) {
     if (target.closest('textarea')) return // editing a note: let the text field handle it
     const badge = target.closest<HTMLElement>('[data-link]')
     if (badge) {
-      window.open(badge.dataset.link, '_blank', 'noopener')
+      void openExternal(badge.dataset.link!)
       return
     }
     const itemEl = target.closest<HTMLElement>('[data-pid]')

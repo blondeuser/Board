@@ -1,4 +1,4 @@
-﻿# Board: Business logic
+# Board: Business logic
 
 What the project does and the domain rules behind it. **Rules for working on the code** are in `CLAUDE.md`; **status** is in `PROGRESS.md`.
 
@@ -15,6 +15,7 @@ What the project does and the domain rules behind it. **Rules for working on the
 |---|---|
 | Local-first, on-device ML only (no cloud API for images) | Decided 2026-11-14 |
 | Desktop app via Tauri, same codebase for Windows + macOS | Decided 2026-11-14 (Tauri over Electron: smaller app; the model already runs in the webview. Test the model on macOS WebKit early, its WASM/WebGPU behaviour differs from Edge) |
+| First demo = Windows installer (Tauri 2, unsigned `.msi` / `-setup.exe`). Works without Node on the demo PC; LIT import and "add a link" fetch directly through the Tauri HTTP plugin; `.bo` saves through a native Save dialog. Library storage stays IndexedDB until the SQLite step, so a fresh install starts empty | Decided 2026-11-15 |
 | An item can live on many boards; boards reference items, not copies | Built 2026-11-14. Removing from a board or deleting a board keeps the image in the library; only deleting in the Library removes it everywhere |
 | Auto tags never overwrite user-edited tags | Proposed |
 | Canvas engine: custom DOM canvas for now | Decided 2026-11-14 for the first draft; revisit after the 500-image check |
@@ -31,7 +32,7 @@ What the project does and the domain rules behind it. **Rules for working on the
 ## Look and feel
 
 - Layout inspired by mymind: calm and content-first, borderless surfaces with soft shadows, generous rounding, icon-only tools with tooltips, few helper texts.
-- Colours are Catppuccin: **Mocha** (dark, default) and **Latte** (light), switched with the sun/moon button at the bottom of the sidebar (`data-theme` on `<html>`, remembered in localStorage). Accent is mauve. New UI must use the CSS tokens at the top of `src/app/styles.css`, never hard-coded colours. Colour-family swatches keep their real colours on purpose.
+- Two themes: **Concrete** (flat grey, default) and **Concrete Dark** (blue-slate), switched with the sun/moon button at the bottom of the sidebar (`data-theme` on `<html>`, remembered in localStorage; the old Catppuccin Latte/Mocha were removed 2026-11-15). New UI must use the CSS tokens at the top of `src/app/styles.css`, never hard-coded colours. Colour-family swatches keep their real colours on purpose.
 
 ## Domain rules
 

@@ -76,7 +76,7 @@ export function Sidebar({ app }: { app: BoardApp }) {
         </ul>
       </section>
 
-      <section>
+      <section className="colour-section">
         <header>
           <h2>Colour</h2>
           {hasFilter && <button className="link" onClick={app.clearFilter}>Clear</button>}

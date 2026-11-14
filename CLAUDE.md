@@ -1,4 +1,4 @@
-﻿# Board
+# Board
 
 A local-first moodboard app for Windows and macOS: an infinite freeform canvas (like Apple Freeform / PureRef) over a searchable image library (like mymind) that auto-categorizes everything by colour, style and subject. For my own design work first; images never leave the machine.
 
@@ -23,16 +23,17 @@ Read a `docs/` file only when the task touches it.
 - **End of a session (or after each finished task):** update `PROGRESS.md` (tick tasks, dated log entry with commit hash, "Last updated"); record new rules/decisions in `MEMORY.md`.
 - If code and `MEMORY.md` disagree, find out which is right before changing either.
 - Run tests and typecheck before every commit; commit in small steps.
-- Stack is scaffolded (2026-11-14). Confirm with me before adding heavy dependencies (canvas engine, ML runtime, Tauri).
+- Stack is scaffolded (2026-11-14). Confirm with me before adding heavy dependencies (canvas engine, ML runtime). Tauri 2 + its http/dialog/fs plugins approved 2026-11-15 for the Windows demo installer.
 
 ## Environment
 
 - Develops on Windows 11 and a MacBook; no OS-specific code outside `src-tauri/`. Paths via Tauri/`path` APIs, never hard-coded separators.
 - Node.js: see `_global/learnings` (vault, outside this repo) for PATH gotchas.
+- Desktop build (Tauri) on Windows also needs Rust (rustup, MSVC toolchain) and Visual Studio C++ Build Tools ("Desktop development with C++"); WebView2 ships with Windows 11. macOS needs Xcode Command Line Tools.
 
 ## Commands
 
-`npm run dev` (Vite, port 5173; also serves the `/__lit` proxy the LIT import needs), `npm test`, `npm run typecheck`, `npm run build`. Browser smoke test: with dev server running, `node scripts/smoke.mjs` (Playwright-core + Edge; `SHOT=path` saves a screenshot). `npm run tauri dev` comes with the Tauri step.
+`npm run dev` (Vite, port 5173; also serves the `/__lit` proxy the LIT import needs), `npm test`, `npm run typecheck`, `npm run build`. Browser smoke test: with dev server running, `node scripts/smoke.mjs` (Playwright-core + Edge; `SHOT=path` saves a screenshot). Desktop (once `src-tauri/` exists): `npm run tauri dev` (opens the app window on the Vite dev server) and `npm run tauri build` (installer in `src-tauri/target/release/bundle/msi/` and `nsis/` on Windows). For building, checking and installing the Windows installer or preparing a demo PC, follow the `board-windows-build` skill (Claude account skill, drafted 2026-11-15; correct it after the first real build).
 
 ## Stack (proposed)
 
@@ -66,6 +67,8 @@ tests/          unit + visual tests
 scripts/        dev scripts (kept in repo, not %TEMP%)
 public/         static assets
 ```
+
+Desktop vs browser: code checks one helper (`isDesktop()`, Tauri present) and never sniffs the OS. In the desktop app, network calls in `sources/` use the Tauri HTTP plugin and file saves use the dialog + fs plugins (from `storage/`); the browser build keeps the dev proxies and browser downloads. Both builds must keep working.
 
 Rules: `sources/` parsers are pure (HTML string in, data out, tested on saved pages in `tests/fixtures/`); their network calls go through one `get()` per source so the Tauri HTTP plugin can replace the dev-server proxy (`/__lit` in `vite.config.ts`, which forwards only the LIT hosts). `shared/` imports nothing from the app; `categorize/` is pure (image in, tags/palette/embedding out) and never touches the UI or DB; `storage/` is the only code that touches disk/DB. `.bo` read/write lives in `storage/bo/` and nowhere else.
 

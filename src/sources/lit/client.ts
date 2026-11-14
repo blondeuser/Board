@@ -1,14 +1,34 @@
 // Network side of the LIT importer. litawards.com and its photo bucket send no CORS headers, so the browser
 // build goes through the dev-server proxy in vite.config.ts (`/__lit?url=`). The Tauri step swaps `get` for the
 // Tauri HTTP plugin; nothing else changes.
+import { isDesktop } from '../../shared/desktop'
+import { fetchFrom } from '../net'
 import { LIT_WINNERS, parseIndex, parseWinner, type LitEntry, type LitIndex, type LitProject } from './parse'
 
 export class LitError extends Error {}
+
+/** Hosts the importer may read (same list as the dev proxy in vite.config.ts). */
+const litAllowed = (host: string) =>
+  host === 'litawards.com' || host === 'www.litawards.com' || (host.startsWith('litthreec.') && host.endsWith('.amazonaws.com'))
 
 const PROXY = '/__lit?url='
 const MIME: Record<string, string> = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif' }
 
 async function get(url: string, signal?: AbortSignal): Promise<Response> {
+  if (isDesktop()) {
+    // Desktop app: fetch directly through the Tauri HTTP plugin (no CORS, no dev server).
+    const u = new URL(url)
+    if (u.protocol !== 'https:' || !litAllowed(u.hostname)) throw new LitError('That address is not on the LIT Awards site.')
+    let r: Response
+    try {
+      r = await fetchFrom(url, signal)
+    } catch (e) {
+      if (signal?.aborted) throw e
+      throw new LitError('Could not reach the LIT Awards site. Check your connection.')
+    }
+    if (!r.ok) throw new LitError(`LIT Awards answered ${r.status} for ${url}`)
+    return r
+  }
   let res: Response
   try {
     res = await fetch(PROXY + encodeURIComponent(url), { signal })

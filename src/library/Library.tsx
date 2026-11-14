@@ -37,7 +37,7 @@ export function Library({ app, onDropData, onDelete }: { app: BoardApp; onDropDa
     () => (searching ? [...shown].sort((a, b) => (app.semantic.get(b.id) ?? -1) - (app.semantic.get(a.id) ?? -1)) : shown),
     [shown, searching, app.semantic],
   )
-  const groups = useMemo(() => groupAssets(ranked, searching ? 'none' : groupBy, categories), [ranked, groupBy, searching, categories])
+  const groups = useMemo(() => groupAssets(ranked, searching ? 'none' : groupBy === 'none' ? 'date' : groupBy, categories), [ranked, groupBy, searching, categories])
   const total = Object.keys(assets).length
 
   const click = (e: React.MouseEvent, id: string) => {
@@ -191,6 +191,13 @@ export function Library({ app, onDropData, onDelete }: { app: BoardApp; onDropDa
       ) : (
         groups.map((g) => (
           <section key={g.key} className="group">
+            {groupBy === 'none' && !searching && (
+              <div className="date-head" onClick={(e) => e.stopPropagation()}>
+                <strong>{g.name}</strong>
+                <span className="muted">{g.items.length} {g.items.length === 1 ? 'image' : 'images'}</span>
+                <button className="link" onClick={() => selectGroup(g.items)}>Select all</button>
+              </div>
+            )}
             {groupBy !== 'none' && !searching && (
               <div className="group-head" onClick={(e) => e.stopPropagation()}>
                 <button className="group-toggle" aria-expanded={!collapsed[g.key]} onClick={() => setCollapsed((c) => ({ ...c, [g.key]: !c[g.key] }))}>

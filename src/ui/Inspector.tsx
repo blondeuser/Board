@@ -1,5 +1,6 @@
 import type { BoardApp } from '../app/useBoardApp'
 import { COLOR_FAMILIES } from '../categorize/color'
+import { openExternal } from '../shared/external'
 import { NOTE_GREYS, NOTE_TINTS, type Placement } from '../shared/types'
 import { ALL_TYPE_LABELS, typeName } from '../categorize/style/labels'
 import { readableOn } from '../shared/contrast'
@@ -59,7 +60,7 @@ export function Inspector({ app, assetIds, notes = [], shapes = [], count, onRem
         <>
           <h3>Source</h3>
           <p className="source-title">
-            <a href={source.url} target="_blank" rel="noreferrer" title={`Open on ${source.site}`}>{source.title || source.site}</a>
+            <a href={source.url} target="_blank" rel="noreferrer" title={`Open on ${source.site}`} onClick={(e) => { e.preventDefault(); void openExternal(source.url) }}>{source.title || source.site}</a>
           </p>
           {source.categories?.length ? <p className="muted source-cats">{source.categories.join(' · ')}</p> : null}
           <dl className="source-details">

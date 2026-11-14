@@ -1,40 +1,26 @@
 /* Wordmark: ReM (italic) + ind in the same serif as everything else. */
 .menubar .app-name { font-weight: 400; font-size: 21px; letter-spacing: 0.01em; line-height: 1; }
-/* Calm, content-first look (mymind-inspired layout) in Catppuccin colours: Mocha (dark) and Latte (light). */
+/* Two themes: Concrete (flat grey, the default) and Concrete Dark (blue-slate). The :root block below is Concrete. */
 :root,
-:root[data-theme='mocha'] {
-  /* Catppuccin Mocha: mantle page, base surfaces, surface0 for hover/placeholder, mauve accent */
-  --bg: #181825;
-  --panel: #1e1e2e;
-  --panel-2: #313244;
-  --line: rgb(205 214 244 / 0.1);
-  --text: #cdd6f4;
-  --muted: #9399b2;
-  --accent: #cba6f7;
-  --on-accent: #11111b;
-  --note-text: #1e1e2e;
-  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.3), 0 4px 16px rgb(0 0 0 / 0.25);
-  --shadow-md: 0 10px 36px rgb(0 0 0 / 0.5);
+:root[data-theme='concrete'] {
+  --bg: #abbab9;
+  --panel: #fefefe;
+  --panel-2: #98a9a8;
+  --ink: #1e1e1e;
+  --line: rgb(30 30 30 / 0.3);
+  --text: #1e1e1e;
+  --muted: #4d5a59;
+  --accent: #0aa79d;
+  --on-accent: #fefefe;
+  --note-text: #1e1e1e;
+  --shadow-sm: 0 0 0 1px var(--ink);
+  --shadow-md: 0 0 0 1px var(--ink);
+  font-weight: 400;
+  letter-spacing: 0;
+  color-scheme: light;
   font-family: 'Instrument Serif', 'Times New Roman', Georgia, serif;
   font-synthesis: none; /* the serif has one weight: never fake bold/italic */
   font-size: 16px;
-  letter-spacing: -0.005em;
-  color-scheme: dark;
-}
-:root[data-theme='latte'] {
-  /* Catppuccin Latte: mantle page, base surfaces, surface0 for hover/placeholder, mauve accent */
-  --bg: #e6e9ef;
-  --panel: #eff1f5;
-  --panel-2: #ccd0da;
-  --line: rgb(76 79 105 / 0.12);
-  --text: #4c4f69;
-  --muted: #7c7f93;
-  --accent: #8839ef;
-  --on-accent: #eff1f5;
-  --note-text: #4c4f69;
-  --shadow-sm: 0 1px 2px rgb(76 79 105 / 0.08), 0 4px 16px rgb(76 79 105 / 0.08);
-  --shadow-md: 0 10px 36px rgb(76 79 105 / 0.2);
-  color-scheme: light;
 }
 
 * { box-sizing: border-box; }
@@ -55,6 +41,11 @@ h3 { margin: 16px 0 8px; }
 .shell.collapsed { grid-template-columns: 0 1fr; }
 .side { grid-column: 1; grid-row: 1; min-width: 0; overflow: hidden; display: flex; flex-direction: column; }
 .side > .sidebar { width: 224px; flex: 1; min-height: 0; }
+/* Progressive blur: content scrolling under the top and bottom edge of the side panel softens gradually (masked backdrop blur). */
+.side { position: relative; }
+.side::before, .side::after { content: ''; position: absolute; left: 0; right: 0; height: 36px; z-index: 2; pointer-events: none; -webkit-backdrop-filter: blur(5px); backdrop-filter: blur(5px); }
+.side::before { top: 0; -webkit-mask-image: linear-gradient(to bottom, #000 10%, transparent); mask-image: linear-gradient(to bottom, #000 10%, transparent); }
+.side::after { bottom: 0; -webkit-mask-image: linear-gradient(to top, #000 10%, transparent); mask-image: linear-gradient(to top, #000 10%, transparent); }
 main { grid-column: 2; grid-row: 1; }
 /* collapsed: the sidebar floats over the canvas, off-screen until the mouse reaches the left edge */
 .shell.collapsed .side { position: absolute; z-index: 25; top: 0; bottom: 0; left: 0; width: 224px; overflow: visible; background: var(--bg); box-shadow: var(--shadow-md); transform: translateX(-102%); transition: transform 0.18s ease; }
@@ -98,6 +89,7 @@ main { position: relative; min-width: 0; overflow: hidden; }
 .list { list-style: none; margin: 0; padding: 0; }
 .list li { display: flex; align-items: center; gap: 9px; padding: 6px 8px; border-radius: 9px; cursor: pointer; min-height: 32px; color: color-mix(in srgb, var(--text) 80%, transparent); }
 .list li:hover { background: var(--panel-2); }
+.list li input { color: var(--text); } /* the rename box sits in an inverted active row: keep its own text colour */
 .list li.active { background: var(--panel); color: var(--text); box-shadow: var(--shadow-sm); font-weight: 500; }
 .list .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; display: inline-block; }
@@ -242,7 +234,8 @@ main { position: relative; min-width: 0; overflow: hidden; }
 .stacks.has-open .stack-tile:not(.open) { opacity: 0.35; filter: grayscale(0.7); }
 .stacks.has-open .stack-tile:not(.open):hover { opacity: 0.8; filter: none; }
 
-.theme-toggle { margin-top: auto; align-self: flex-start; }
+.colour-section { margin-top: auto; }
+.theme-toggle { align-self: flex-start; margin-top: -10px; }
 
 /* Status pill is a button (click to reopen a hidden LIT import). */
 button.status { border: 0; font: inherit; font-size: 15px; cursor: default; }
@@ -284,25 +277,8 @@ button.status { border: 0; font: inherit; font-size: 15px; cursor: default; }
 .progress { height: 6px; border-radius: 999px; background: var(--panel-2); overflow: hidden; }
 .progress i { display: block; height: 100%; background: var(--accent); transition: width 0.2s ease-out; }
 
-/* Concrete: flat sage-grey page, square white boxes with hairline edges, black active state, teal accent, tight grotesk type
-   (after the typesafe.ai blog look). No shadows or rounding; hover/active = invert to black. */
-:root[data-theme='concrete'] {
-  --bg: #abbab9;
-  --panel: #fefefe;
-  --panel-2: #98a9a8;
-  --ink: #1e1e1e;
-  --line: rgb(30 30 30 / 0.3);
-  --text: #1e1e1e;
-  --muted: #4d5a59;
-  --accent: #0aa79d;
-  --on-accent: #fefefe;
-  --note-text: #1e1e1e;
-  --shadow-sm: 0 0 0 1px var(--ink);
-  --shadow-md: 0 0 0 1px var(--ink);
-  font-weight: 400;
-  letter-spacing: 0;
-  color-scheme: light;
-}
+/* Concrete look: flat sage-grey page, square white boxes with hairline edges, black active state, teal accent.
+   No shadows or rounding; hover/active = invert to black. Variables are in :root at the top. */
 /* Concrete Dark: the same flat boxed look in blue-slate. --ink is the light edge/hover colour, hover text is the dark panel. */
 :root[data-theme='concrete-dark'] {
   --bg: #151c28;
@@ -432,3 +408,9 @@ button.status { border: 0; font: inherit; font-size: 15px; cursor: default; }
 /* Concrete: stacks are square with hairline edges, no soft shadows. */
 :root[data-theme^='concrete'] .stack .card { border-radius: 0; box-shadow: 0 0 0 1px var(--ink); }
 :root[data-theme^='concrete'] .stack-title { border-top-color: var(--ink); }
+
+/* All tab: a big serif date landmark (MM/YY) above each month's images. */
+.date-head { display: flex; align-items: baseline; gap: 18px; margin: 18px 0 16px; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
+.date-head strong { font-weight: 400; font-size: 96px; line-height: 0.9; letter-spacing: -0.01em; }
+.date-head .muted { font-size: 18px; flex: 1; }
+:root[data-theme^='concrete'] .date-head { border-bottom-color: var(--ink); }

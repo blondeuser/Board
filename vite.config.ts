@@ -124,5 +124,9 @@ function linkProxy(): Plugin {
 
 export default defineConfig({
   plugins: [react(), litProxy(), linkProxy()],
+  // Tauri expects a fixed port, readable Rust errors, and no reload when Rust files change.
+  clearScreen: false,
+  server: { port: 5173, strictPort: true, watch: { ignored: ['**/src-tauri/**'] } },
+  envPrefix: ['VITE_', 'TAURI_ENV_*'],
   test: { include: ['tests/**/*.test.ts'] },
 })

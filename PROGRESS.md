@@ -2,19 +2,28 @@
 
 Living status. **Update at the end of every work session.** Rules live in `CLAUDE.md`, business logic in `MEMORY.md`.
 
-_Last updated: 2026-11-14 (LIT Awards import)_
+_Last updated: 2026-11-15 (plan: Windows demo installer via Tauri)_
 
 ## Status
 
 |                   |                                                                                                                                                                                                                                                                                                                                |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Current phase** | Browser build with Library, meaning-search, `.bo` files, menu bar and LIT Awards import done; next: verify the LIT import on the Mac, then lighting-technique eval (sigmoid scoring, LIT photos as eval data), 500-image canvas check, Tauri shell                                                                             |
+| **Current phase** | Browser build with Library, meaning-search, `.bo` files, menu bar and LIT Awards import done; **next: Windows demo installer (Tauri shell, chosen 2026-11-15)**, then verify the LIT import on the Mac, lighting-technique eval (sigmoid scoring, LIT photos as eval data), 500-image canvas check, Tauri shell                                                                             |
 | **App**           | Runs with `npm run dev` (port 5173). Boards, infinite canvas, notes, bento mode, Library (Category / Type / Colour / Award / All tabs, stacks, semantic search), colour + type + custom-category tags, `.bo` save/open, menu bar, collapsible sidebar, File > Import from LIT Awards (needs the dev server), Mocha/Latte theme |
 | **Tests**         | 38 Vitest tests (colour, viewport, bento layout, type picking, library grouping, search, `.bo`, LIT parsers) + Playwright smoke scripts in `scripts/`. 27 passed at the last full run; the 11 LIT tests were checked only under plain Node, **run `npm test` + `npm run typecheck` on the Mac**                                |
 | **Hosting**       | GitHub `blondeuser/Board` (public). Latest commit `a97360e`                                                                                                                                                                                                                                                                    |
 
 ## Resume here (next session)
 
+0. **Windows demo installer (Tauri 2), chosen 2026-11-15.** Goal: an `.msi` / `-setup.exe` I can install on a Windows PC without Node for the first demo. Steps:
+   1. Prerequisites on the Windows PC: Rust (rustup, MSVC toolchain) + Visual Studio C++ Build Tools ("Desktop development with C++"). WebView2 is already on Windows 11.
+   2. Add Tauri: `@tauri-apps/cli` (dev), `@tauri-apps/api`, `@tauri-apps/plugin-http`, `@tauri-apps/plugin-dialog`, `@tauri-apps/plugin-fs`; `npm run tauri` script; `src-tauri/` (Cargo.toml, `tauri.conf.json` with devUrl `http://localhost:5173`, frontendDist `../dist`, identifier e.g. `com.remstudio.remind`, product name REMind; icons via `npx tauri icon <1024px png>`; capabilities for http/dialog/fs). Vite: `server.strictPort: true`, `clearScreen: false`.
+   3. Network: in the desktop app, `get()` in `src/sources/lit/client.ts` and `loadLink()` in `src/sources/link/client.ts` use the Tauri HTTP plugin (direct fetch, `parseLink` on the client side); the browser build keeps the `/__lit` and `/__link` dev proxies. HTTP scope: LIT hosts + public http(s) only; refuse localhost/private addresses in code as the proxy does.
+   4. `.bo` save: the `<a download>` in `useBoardApp.ts` becomes a native Save dialog + file write in the desktop app (helper in `src/storage/`). `.bo` open via `<input type=file>` should work as-is: check.
+   5. `npm run tauri dev` → check canvas, Library, model load (Web Worker + ONNX wasm in WebView2), LIT import, link paste, `.bo` save/open. Then `npm run tauri build` → installer in `src-tauri/target/release/bundle/{msi,nsis}/`.
+   6. Demo prep: install on the demo PC, open once with internet so the ~210 MB model downloads, import a few LIT categories / sample boards beforehand. The installer is unsigned: SmartScreen shows "More info → Run anyway".
+   Full build/check/install checklist: `board-windows-build` skill (drafted 2026-11-15 before any real build; after the first successful build, fix any step that differed and drop its "drafted" note).
+   Not in the demo build (later Tauri steps): SQLite + files on disk, bundled offline model, `.bo` file association, code signing, macOS build.
 1. **Verify + commit the LIT import.** On the Mac: `npm test`, `npm run typecheck`, then `npm run dev` → File > Import from LIT Awards…, one small category, 1-3 photos per project. Check: progress, Stop/Hide, photos land in the Library with Source in the inspector, Award tab, search by company/location, re-run skips existing photos, new board option, `.bo` save keeps `source`. Then commit.
 2. **Lighting eval (riskiest part).** Pick the final label list from `docs/LIGHTING_TAXONOMY.md` (~10-14). Collect 30-50 reference photos per label into `data/lighting-eval/<label>/` (not committed if large); LIT imports are a quick source (see the taxonomy doc). Write `scripts/eval-lighting.mjs`: zero-shot with **sigmoid** scores (see CLAUDE.md "Zero-shot scoring"), per-label precision/recall + confusion pairs. Then a logistic-regression probe on the stored embeddings, same report. Decide: ship as-is / merge confusing labels / keep as research. Record result in `MEMORY.md`.
 3. **500-image canvas check** (`scripts/perf.mjs` with 500 real photos, pan/zoom/select). Keep custom canvas if smooth; else evaluate Konva (MIT). Not tldraw: needs a licence key in production.
@@ -73,8 +82,13 @@ _Last updated: 2026-11-14 (LIT Awards import)_
 - [ ] Extra abilities (e.g. OCR for text in images) as separate lazy-loaded models, each in its own `models/<id>/` folder
 
 ### 5. Desktop shell
+- [ ] **Windows demo installer** (first demo; plan in "Resume here" step 0): Tauri 2 shell, unsigned `.msi` / NSIS `-setup.exe`
 - [ ] Tauri wrapper, builds on Windows + macOS
 - [ ] LIT client through the Tauri HTTP plugin (replace `get()` in `src/sources/lit/client.ts`), so the import works without `npm run dev`
+- [ ] "Add a link" through the Tauri HTTP plugin (replace the `/__link` proxy in `src/sources/link/client.ts`)
+- [ ] `.bo` save through a native Save dialog (Tauri dialog + fs plugins) instead of a browser download
+- [ ] App icon (REMind) for the installer and window
+- [ ] Code signing (later; the demo build is unsigned)
 
 ### 6. Reference sources
 - [x] LIT Awards winners import (2026-11-14): edition + award-category picker (remembered), photos per project 1/3/6/All, optional new board, progress with Hide/Stop, skips photos already imported (by image URL); credits stored as `Asset.source`; searchable; Library "Award" tab; Source block in the inspector
@@ -100,11 +114,14 @@ _Last updated: 2026-11-14 (LIT Awards import)_
 - Reported lag when selecting ~12 photos: could not reproduce headless (150 fps, ~3ms/frame main-thread; `scripts/perf.mjs`). Thumbnails shipped as the likely fix (decoded size 48MB -> 5MB per 12MP photo). Needs confirming on the real machine; if it persists, ask for monitor/GPU + photo sizes and profile in Edge DevTools Performance.
 - Not yet checked on macOS / Safari; only Edge via Playwright.
 - Browser extension / mobile capture (later).
+- Desktop app storage: until the SQLite step, the Tauri app keeps using IndexedDB inside WebView2 (its own app-data folder). It starts with an **empty library**: boards made in the browser build (`localhost:5173`) don't carry over; move them with `.bo` export/import.
+- Demo installer is unsigned: Windows SmartScreen warns on first run ("More info → Run anyway").
 
 ## Decisions
 
 | Date | Decision | Why |
 |---|---|---|
+| 2026-11-15 | First demo ships as a Windows installer built with Tauri 2 (unsigned `.msi` / `-setup.exe`), ahead of the SQLite step; storage stays IndexedDB for the demo | Demo PC needs no Node; Tauri was already the chosen shell. SQLite, offline model and file association follow as separate steps |
 | 2026-11-14 | Canvas is custom (DOM + CSS transform), not tldraw/Konva | Only needs images + pan/zoom/drag; no dependency, easy to swap later. Re-evaluate in the 500-image perf check |
 | 2026-11-14 | Browser build first with IndexedDB; Tauri/SQLite later | Fast iteration; storage code is isolated in `src/storage/` |
 | 2026-11-14 | Model files live as plain files (`models/<id>/`, bundled in Tauri resources or downloaded once to app-data); embeddings + tags live in SQLite. No MongoDB | MongoDB is a server DB and breaks local-first; model binaries don't belong in a database |
@@ -118,6 +135,14 @@ _Last updated: 2026-11-14 (LIT Awards import)_
 | 2026-11-14 | Imported images carry `Asset.source` (link, title, categories, credit, details) instead of auto-creating custom categories | 68 award categories per year would flood the sidebar; source data stays searchable and groupable (Award tab) and keeps photographer credits |
 
 ## Log
+
+### 2026-11-15 (themes, desktop shell scaffold)
+- Themes cut to two: Concrete (default) and Concrete Dark; Latte/Mocha removed. Fixed invisible text in the board rename box. Progressive blur on the side panel's top/bottom edges. All-tab MM/YY date landmarks; colour picker moved to the bottom of the sidebar.
+- Tauri 2 shell scaffolded in `src-tauri/` (http, dialog, fs, opener plugins; opener added beyond the approved list), desktop code paths (`shared/desktop.ts`, `sources/net.ts`, `storage/saveFile.ts`, `shared/external.ts`), icon = "ReM:ind" wordmark on white (`scripts/make-icon.mjs`). Nothing Rust-side compiled yet: Rust + VS C++ Build Tools not installed. Next: install them, `npx tauri dev`, then `npx tauri build`.
+
+### 2026-11-15 (plan: Windows demo installer)
+- Chose to build the first demo as a Windows installer with Tauri 2 (over running `vite preview` + Edge "Install as app", which needs Node on the demo PC). Plan written in "Resume here" step 0; roadmap §5 split into tasks; decision and known issues recorded. Tauri approved (CLAUDE.md asked to confirm before adding it). No code changed yet. Baseline before the Tauri work: 56 tests pass, typecheck clean.
+- Drafted the `board-windows-build` skill (prerequisites, pre-build checks, build outputs, common failures, demo-PC prep, doc updates after a build) and pointed `CLAUDE.md` and step 0 to it. Existing repo skills to use along the way: `tauri-setup`, `tauri-scaffold`, `tauri-config`, `tauri-app-http-client`, `tauri-app-dialog`, `tauri-app-file-system`, `tauri-security`, `tauri-build` (thin checklists; check exact config against the Tauri v2 docs).
 
 ### 2026-11-14 (REMind: serif UI, notes, stacks)
 - **Renamed the app REMind** (tab title; wordmark "ReM:ind" in the menu bar, "ReM:" italic). Whole UI now uses Instrument Serif (`@fontsource/instrument-serif`, bundled, OFL) with small sizes bumped, no fake bold; menu bar is 52px tall with 22px type.

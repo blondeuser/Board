@@ -8,6 +8,8 @@ import { alignPatches, reorderZ, type AlignMode, type OrderMode } from '../canva
 import { analyseImage, embedText, setModelProgressListener } from '../categorize/style/classifier'
 import { queryToPrompt, semanticMatches } from '../categorize/style/search'
 import { EMBEDDING_MODEL } from '../categorize/style/model'
+import { saveFile } from '../storage/saveFile'
+import { isDesktop } from '../shared/desktop'
 import { zipSync, type Zippable } from 'fflate'
 import { SPACES_VERSION, pickSpaces, typeName } from '../categorize/style/labels'
 import { APP_VERSION, buildBo, type BoAsset } from '../storage/bo/write'
@@ -25,11 +27,8 @@ const STOP_WORDS = new Set(['the', 'a', 'an', 'of', 'in', 'on', 'with', 'and', '
 const DEFAULT_VIEW: ViewState = { x: 0, y: 0, zoom: 1 }
 const toggle = (list: string[], v: string) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v])
 
-function download(blob: Blob, name: string) {
-  const url = URL.createObjectURL(blob)
-  Object.assign(document.createElement('a'), { href: url, download: name }).click()
-  setTimeout(() => URL.revokeObjectURL(url), 10_000)
-}
+/** Download (browser) or Save-dialog (desktop) a file; export errors are reported by the caller. */
+const download = (blob: Blob, name: string) => saveFile(blob, name)
 
 export function useBoardApp() {
   const [ready, setReady] = useState(false)
@@ -487,6 +486,7 @@ export function useBoardApp() {
 
   // File > Save remembers where each board was saved (browsers that allow it); lost on reload.
   const fileHandles = useRef(new Map<string, FileSystemFileHandle>())
+  const filePaths = useRef(new Map<string, string>()) // desktop: board id -> path last saved to
 
   const saveBoardFile = useCallback(async (asNew: boolean) => {
     try {
@@ -494,6 +494,14 @@ export function useBoardApp() {
       if (!packed) return
       const { board: b, bytes, count } = packed
       const name = `${b.name.replace(/[\\/:*?"<>|]+/g, '-').trim() || 'board'}.bo`
+      if (isDesktop()) {
+        // Native Save dialog; File > Save writes to the path chosen earlier, Save As asks again.
+        const saved = await saveFile(bytes, name, asNew ? undefined : filePaths.current.get(b.id))
+        if (!saved) return // dialog cancelled
+        if (saved.path) filePaths.current.set(b.id, saved.path)
+        notify(`Saved ${saved.name} (${count} image${count === 1 ? '' : 's'})`)
+        return
+      }
       const picker = (window as unknown as { showSaveFilePicker?: (o: object) => Promise<FileSystemFileHandle> }).showSaveFilePicker
       let handle = asNew ? undefined : fileHandles.current.get(b.id)
       if (!handle && picker) {
@@ -507,7 +515,7 @@ export function useBoardApp() {
         notify(`Saved ${handle.name} (${count} image${count === 1 ? '' : 's'})`)
       } else {
         // No file-picker support (Firefox/Safari): download instead.
-        download(new Blob([bytes as BlobPart], { type: 'application/octet-stream' }), name)
+        await download(new Blob([bytes as BlobPart], { type: 'application/octet-stream' }), name)
         notify(`Saved ${name} to Downloads`)
       }
     } catch (e) {
@@ -541,8 +549,15 @@ export function useBoardApp() {
       }
     }
     const done = Object.keys(files).length
-    if (done === 1 && single) download(single, 'image.jpg')
-    else if (done) download(new Blob([zipSync(files) as BlobPart], { type: 'application/zip' }), 'images.zip')
+    let saved: { name: string } | null = { name: '' }
+    try {
+      if (done === 1 && single) saved = await download(single, 'image.jpg')
+      else if (done) saved = await download(new Blob([zipSync(files) as BlobPart], { type: 'application/zip' }), 'images.zip')
+    } catch {
+      notify('Could not save the export.')
+      return
+    }
+    if (!saved) return // save dialog cancelled
     notify(done ? `Exported ${done} JPEG${done === 1 ? '' : 's'}${failed ? `, ${failed} failed` : ''}` : 'Could not export those images.')
   }, [notify])
 
