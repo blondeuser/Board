@@ -31,7 +31,7 @@ export function Sidebar({ app }: { app: BoardApp }) {
           <h2>Boards</h2>
           <span className="row">
             <button className="icon" title="Open a .bo file" onClick={() => boFile.current?.click()}><UploadIcon /></button>
-            <button className="icon" title="Save this board as a .bo file" disabled={app.screen !== 'board'} onClick={() => void app.exportBoard()}><DownloadIcon /></button>
+            <button className="icon" title="Save this board as a .bo file" disabled={app.screen !== 'board'} onClick={() => void app.saveBoardAs()}><DownloadIcon /></button>
             <button className="icon" title="New board" onClick={app.addBoard}><PlusIcon /></button>
           </span>
           <input

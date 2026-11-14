@@ -2,7 +2,7 @@
 
 Living status. **Update at the end of every work session.** Rules live in `CLAUDE.md`, business logic in `MEMORY.md`.
 
-_Last updated: 2026-11-14 (.bo export/import)_
+_Last updated: 2026-11-14 (collapsible sidebar)_
 
 ## Status
 
@@ -103,6 +103,12 @@ _Last updated: 2026-11-14 (.bo export/import)_
 | 2026-11-14 | Lighting eval before building lighting UI | Riskiest feature: zero-shot may not separate grazing/washing, scallop/accent |
 
 ## Log
+
+### 2026-11-14 (collapsible sidebar)
+- Left sidebar can be hidden: toggle button in the menu bar, View > Hide/Show Sidebar, Cmd/Ctrl+\\. Hidden = auto-hide: moving the mouse to the left edge slides it over the canvas, it hides ~250 ms after the mouse leaves. Choice remembered (`board.sidebar` in localStorage). Layout: `.app > .menubar + .shell`, sidebar in `.side`; `App.tsx` holds the state. Checked in Chrome (collapse, edge hover, hide, reload, shortcut); typecheck + 27 tests pass. Not committed.
+
+### 2026-11-14 (menu bar)
+- macOS-style menu bar on top (`src/ui/MenuBar.tsx`): Board | File > New Board, Open…, Save (Cmd/Ctrl+S), Save As… (Shift+Cmd/Ctrl+S). Save writes to the file picked earlier for that board (File System Access API, Chromium); Save As always asks; browsers without the picker download instead. Remembered file is lost on reload. `exportBoard` became `saveBoard`/`saveBoardAs` in `useBoardApp`. Checked in Chrome with a stubbed picker (menu, Save As, Cmd+S); typecheck + 27 tests pass. Not committed.
 
 ### 2026-11-14 (.bo export/import)
 - Save a board as `.bo` (ZIP with all original image files) and open one again: `src/storage/bo/{write,read,hash}.ts`, buttons in the sidebar Boards header, `exportBoard`/`importBo` in `useBoardApp`. Added dependency `fflate` (named in the spec). `Asset.hash` added. 5 new tests (27 total). Typecheck + tests pass; **not tried in a browser yet**. Commit `628b436`.

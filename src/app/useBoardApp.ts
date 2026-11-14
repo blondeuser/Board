@@ -312,37 +312,64 @@ export function useBoardApp() {
   )
 
   // ---- .bo files (docs/BO_FORMAT.md) ----
-  /** Save the open board as a `.bo` download: layout, notes, tags and the original image files. */
-  const exportBoard = useCallback(async () => {
+  /** Pack the open board into `.bo` bytes: layout, notes, tags, categories and the original image files. */
+  const packBoard = useCallback(async () => {
     const { boards: bs, placements: ps, assets: all, categories: cats, activeId: id } = latest.current
     const b = bs.find((x) => x.id === id)
-    if (!b) return
-    try {
-      const onBoard = ps.filter((p) => p.boardId === id)
-      const images = new Map<string, Uint8Array>()
-      const assets: BoAsset[] = []
-      for (const assetId of new Set(onBoard.map((p) => p.assetId).filter(Boolean))) {
-        const a = all[assetId]
-        const blob = await db.blob(assetId)
-        if (!a || !blob) throw new Error('missing image')
-        const bytes = new Uint8Array(await blob.arrayBuffer())
-        const hash = a.hash ?? (await sha256Hex(bytes))
-        if (!a.hash) updateAssets([assetId], (x) => ({ ...x, hash }))
-        images.set(hash, bytes)
-        const { embedding: _e, embeddingModel: _m, ...rest } = a
-        assets.push({ ...rest, hash, ext: extOf(blob.type) })
-      }
-      const used = new Set(assets.flatMap((a) => a.categoryIds))
-      const bytes = buildBo({ board: b, placements: onBoard, assets, categories: cats.filter((c) => used.has(c.id)), images }, APP_VERSION)
-      const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: 'application/octet-stream' }))
-      const link = Object.assign(document.createElement('a'), { href: url, download: `${b.name.replace(/[\\/:*?"<>|]+/g, '-').trim() || 'board'}.bo` })
-      link.click()
-      setTimeout(() => URL.revokeObjectURL(url), 10_000)
-      notify(`Saved "${b.name}" (${assets.length} image${assets.length === 1 ? '' : 's'})`)
-    } catch {
-      notify('Could not save the board: an image file is missing from the library.')
+    if (!b) return null
+    const onBoard = ps.filter((p) => p.boardId === id)
+    const images = new Map<string, Uint8Array>()
+    const assets: BoAsset[] = []
+    for (const assetId of new Set(onBoard.map((p) => p.assetId).filter(Boolean))) {
+      const a = all[assetId]
+      const blob = await db.blob(assetId)
+      if (!a || !blob) throw new Error('missing image')
+      const bytes = new Uint8Array(await blob.arrayBuffer())
+      const hash = a.hash ?? (await sha256Hex(bytes))
+      if (!a.hash) updateAssets([assetId], (x) => ({ ...x, hash }))
+      images.set(hash, bytes)
+      const { embedding: _e, embeddingModel: _m, ...rest } = a
+      assets.push({ ...rest, hash, ext: extOf(blob.type) })
     }
-  }, [notify, updateAssets])
+    const used = new Set(assets.flatMap((a) => a.categoryIds))
+    const bytes = buildBo({ board: b, placements: onBoard, assets, categories: cats.filter((c) => used.has(c.id)), images }, APP_VERSION)
+    return { board: b, bytes, count: assets.length }
+  }, [updateAssets])
+
+  // File > Save remembers where each board was saved (browsers that allow it); lost on reload.
+  const fileHandles = useRef(new Map<string, FileSystemFileHandle>())
+
+  const saveBoardFile = useCallback(async (asNew: boolean) => {
+    try {
+      const packed = await packBoard()
+      if (!packed) return
+      const { board: b, bytes, count } = packed
+      const name = `${b.name.replace(/[\\/:*?"<>|]+/g, '-').trim() || 'board'}.bo`
+      const picker = (window as unknown as { showSaveFilePicker?: (o: object) => Promise<FileSystemFileHandle> }).showSaveFilePicker
+      let handle = asNew ? undefined : fileHandles.current.get(b.id)
+      if (!handle && picker) {
+        handle = await picker({ suggestedName: name, types: [{ description: 'Board file', accept: { 'application/octet-stream': ['.bo'] } }] })
+        fileHandles.current.set(b.id, handle)
+      }
+      if (handle) {
+        const w = await handle.createWritable()
+        await w.write(bytes as BlobPart)
+        await w.close()
+        notify(`Saved ${handle.name} (${count} image${count === 1 ? '' : 's'})`)
+      } else {
+        // No file-picker support (Firefox/Safari): download instead.
+        const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: 'application/octet-stream' }))
+        Object.assign(document.createElement('a'), { href: url, download: name }).click()
+        setTimeout(() => URL.revokeObjectURL(url), 10_000)
+        notify(`Saved ${name} to Downloads`)
+      }
+    } catch (e) {
+      if ((e as DOMException)?.name === 'AbortError') return // picker cancelled
+      notify('Could not save the board.')
+    }
+  }, [notify, packBoard])
+  const saveBoard = useCallback(() => saveBoardFile(false), [saveBoardFile])
+  const saveBoardAs = useCallback(() => saveBoardFile(true), [saveBoardFile])
 
   /** Open a `.bo` as a new board. Images already in the library (same hash) are reused, never duplicated. */
   const importBo = useCallback(async (file: File) => {
@@ -535,7 +562,7 @@ export function useBoardApp() {
     ready, boards, board, activeId, assets, urls, categories, selection, filter, message,
     boardPlacements,
     setSelection, selectBoard, addBoard, renameBoard, removeBoard, setView,
-    exportBoard, importBo,
+    saveBoard, saveBoardAs, importBo,
     importBlobs, patchPlacements, commitPlacements, bringToFront, removeFromBoard,
     toggleTag, addCategory, removeCategory, toggleFilter, clearFilter, matches, notify,
   }

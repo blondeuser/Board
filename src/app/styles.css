@@ -47,7 +47,30 @@ input {
 h2, h3 { margin: 0; font-size: 12px; font-weight: 500; color: var(--muted); }
 h3 { margin: 16px 0 8px; }
 
-.shell { display: grid; grid-template-columns: 224px 1fr; height: 100%; }
+.app { display: flex; flex-direction: column; height: 100%; }
+.shell { position: relative; display: grid; grid-template-columns: 224px 1fr; flex: 1; min-height: 0; transition: grid-template-columns 0.18s ease; }
+.shell.collapsed { grid-template-columns: 0 1fr; }
+.side { grid-column: 1; grid-row: 1; min-width: 0; overflow: hidden; display: flex; flex-direction: column; }
+.side > .sidebar { width: 224px; flex: 1; min-height: 0; }
+main { grid-column: 2; grid-row: 1; }
+/* collapsed: the sidebar floats over the canvas, off-screen until the mouse reaches the left edge */
+.shell.collapsed .side { position: absolute; z-index: 25; top: 0; bottom: 0; left: 0; width: 224px; overflow: visible; background: var(--bg); box-shadow: var(--shadow-md); transform: translateX(-102%); transition: transform 0.18s ease; }
+.shell.collapsed .side.peek { transform: none; }
+.edge { position: absolute; z-index: 24; top: 0; bottom: 0; left: 0; width: 10px; }
+.menubar .sidebar-toggle { width: 26px; height: 22px; border-radius: 5px; margin-right: 2px; }
+
+/* macOS-style menu bar */
+.menubar { display: flex; align-items: center; gap: 2px; height: 28px; padding: 0 10px; flex: none; font-size: 13px; background: var(--panel); box-shadow: 0 1px 0 var(--line); position: relative; z-index: 30; user-select: none; }
+.menubar .app-name { font-weight: 600; padding: 0 10px 0 6px; }
+.menu { position: relative; }
+.menu-title { background: none; border: 0; border-radius: 5px; padding: 2px 10px; height: 22px; }
+.menu-title:hover, .menu-title.open { background: var(--accent); color: var(--on-accent); }
+.menu-list { position: absolute; top: 26px; left: 0; min-width: 230px; padding: 5px; background: var(--panel); border-radius: 9px; box-shadow: var(--shadow-md), 0 0 0 1px var(--line); display: flex; flex-direction: column; }
+.menu-list button { display: flex; justify-content: space-between; gap: 28px; align-items: center; text-align: left; background: none; border: 0; border-radius: 5px; padding: 4px 10px; font-size: 13px; }
+.menu-list button:hover:not(:disabled) { background: var(--accent); color: var(--on-accent); }
+.menu-list kbd { font: inherit; color: var(--muted); }
+.menu-list button:hover:not(:disabled) kbd { color: inherit; opacity: 0.8; }
+.menu-list hr { border: 0; height: 1px; background: var(--line); margin: 5px 6px; }
 main { position: relative; min-width: 0; overflow: hidden; }
 .muted { color: var(--muted); }
 

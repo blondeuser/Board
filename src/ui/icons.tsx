@@ -19,3 +19,4 @@ export const MoonIcon = () => <Svg><path d="M13 9.4A5.5 5.5 0 016.6 3a5.5 5.5 0 
 export const TrashIcon = () => <Svg><path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5" /></Svg>
 export const DownloadIcon = () => <Svg><path d="M8 2.5v8M4.8 7.6L8 10.8l3.2-3.2M3 13.5h10" /></Svg>
 export const UploadIcon = () => <Svg><path d="M8 10.8v-8M4.8 5.7L8 2.5l3.2 3.2M3 13.5h10" /></Svg>
+export const SidebarIcon = () => <Svg><rect x="2.5" y="3" width="11" height="10" rx="2" /><path d="M6.5 3v10" /></Svg>

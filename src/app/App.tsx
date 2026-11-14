@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useBoardApp, type BoardApp } from './useBoardApp'
 import { Canvas } from '../canvas/Canvas'
 import { bentoLayout } from '../canvas/bento'
 import { boundsOf, clampZoom, fitRect, screenToWorld, zoomAt } from '../canvas/viewport'
 import { blobsFromTransfer } from '../items/importImage'
+import { MenuBar } from '../ui/MenuBar'
 import { Sidebar } from '../ui/Sidebar'
 import { Inspector } from '../ui/Inspector'
 import { Library } from '../library/Library'
@@ -21,6 +22,22 @@ export function App() {
   const pointer = useRef<{ x: number; y: number } | null>(null)
   const live = useRef(app)
   live.current = app
+
+  // Left sidebar: pinned, or hidden and slid out as an overlay while the mouse is at the left edge.
+  const [sidebarOpen, setSidebarOpen] = useState(() => {
+    try { return localStorage.getItem('board.sidebar') !== 'hidden' } catch { return true }
+  })
+  const [peek, setPeek] = useState(false)
+  const peekTimer = useRef<number>(0)
+  const toggleSidebar = useCallback(() => {
+    setPeek(false)
+    setSidebarOpen((open) => {
+      try { localStorage.setItem('board.sidebar', open ? 'hidden' : 'pinned') } catch { /* not remembered */ }
+      return !open
+    })
+  }, [])
+  const showPeek = () => { window.clearTimeout(peekTimer.current); setPeek(true) }
+  const hidePeek = () => { window.clearTimeout(peekTimer.current); peekTimer.current = window.setTimeout(() => setPeek(false), 250) }
 
   const worldPointAt = useCallback((clientX?: number, clientY?: number) => {
     const rect = viewportRef.current!.getBoundingClientRect()
@@ -53,8 +70,18 @@ export function App() {
       pointer.current = inside ? { x: e.clientX, y: e.clientY } : null
     }
     const onKey = (e: KeyboardEvent) => {
-      if ((e.target as HTMLElement).matches?.('input, textarea')) return
       const a = live.current
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault() // never the browser's "save page"
+        if (a.screen === 'board') void (e.shiftKey ? a.saveBoardAs() : a.saveBoard())
+        return
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === '\\') {
+        e.preventDefault()
+        toggleSidebar()
+        return
+      }
+      if ((e.target as HTMLElement).matches?.('input, textarea')) return
       if (a.screen === 'library') {
         const sel = a.librarySelection
         if ((e.key === 'Delete' || e.key === 'Backspace') && sel.length) confirmDelete(a, sel)
@@ -80,7 +107,7 @@ export function App() {
       window.removeEventListener('pointermove', onMove)
       window.removeEventListener('keydown', onKey)
     }
-  }, [ingest])
+  }, [ingest, toggleSidebar])
 
   const bento = app.board?.mode === 'bento'
   const { boardPlacements, assets } = app
@@ -118,8 +145,13 @@ export function App() {
   const filtering = app.filter.colors.length + app.filter.categories.length + app.filter.types.length > 0
 
   return (
-    <div className="shell">
-      <Sidebar app={app} />
+    <div className="app">
+      <MenuBar app={app} sidebarOpen={sidebarOpen} onToggleSidebar={toggleSidebar} />
+      <div className={'shell' + (sidebarOpen ? '' : ' collapsed')}>
+      {!sidebarOpen && <div className="edge" onPointerEnter={showPeek} onPointerLeave={hidePeek} />}
+      <div className={'side' + (!sidebarOpen && peek ? ' peek' : '')} onPointerEnter={showPeek} onPointerLeave={() => !sidebarOpen && hidePeek()}>
+        <Sidebar app={app} />
+      </div>
       <main>
         {app.screen === 'library' ? (
           <>
@@ -180,6 +212,7 @@ export function App() {
         )}
         {app.message && <div className="toast">{app.message}</div>}
       </main>
+      </div>
     </div>
   )
 }
