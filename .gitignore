@@ -1,0 +1,22 @@
+﻿node_modules/
+dist/
+coverage/
+*.local
+src-tauri/target/
+models/*.onnx
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.agents/
+.codex/
+.claude/skills/
+.claude/agents/
+.claude/settings.local.json
+
+# Per-machine agent tooling, smoke screenshots, Playwright state
+agent/
+skills-lock.json
+smoke*.png
+.playwright/
