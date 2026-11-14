@@ -6,6 +6,7 @@ import { Canvas } from '../canvas/Canvas'
 import { bentoLayout } from '../canvas/bento'
 import { boundsOf, clampZoom, fitRect, screenToWorld, zoomAt } from '../canvas/viewport'
 import { blobsFromTransfer } from '../items/importImage'
+import { LinkError, isWebUrl, loadLink } from '../sources/link/client'
 import { MenuBar } from '../ui/MenuBar'
 import { ContextMenu, type MenuItem } from '../ui/ContextMenu'
 import { Sidebar } from '../ui/Sidebar'
@@ -67,12 +68,22 @@ export function App() {
   }, [])
 
   const ingest = useCallback(async (dt: DataTransfer, clientX?: number, clientY?: number) => {
+    // In the library there is no board to place on: the images are just added to the library.
+    const at = () => (live.current.screen === 'library' ? null : worldPointAt(clientX, clientY))
     try {
+      const files = [...dt.files].filter((f) => f.type.startsWith('image/'))
+      const url = dt.getData('text/uri-list').split('\n').find((l) => l && !l.startsWith('#'))?.trim() ?? dt.getData('text/plain').trim()
+      if (!files.length && isWebUrl(url)) {
+        // A web address: the page's preview image becomes the card (an image address works too), linking back to the page.
+        live.current.notify('Fetching link…')
+        const { blob, source } = await loadLink(url)
+        await live.current.importBlobs([blob], at(), { sources: [source] })
+        return
+      }
       const blobs = await blobsFromTransfer(dt)
-      // In the library there is no board to place on: the images are just added to the library.
-      if (blobs.length) await live.current.importBlobs(blobs, live.current.screen === 'library' ? null : worldPointAt(clientX, clientY))
-    } catch {
-      live.current.notify("Couldn't load that image. Try saving it and dropping the file.")
+      if (blobs.length) await live.current.importBlobs(blobs, at())
+    } catch (e) {
+      live.current.notify(e instanceof LinkError ? e.message : "Couldn't load that image. Try saving it and dropping the file.")
     }
   }, [worldPointAt])
 

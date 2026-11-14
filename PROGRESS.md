@@ -1,4 +1,4 @@
-﻿# Board: Progress
+# Board: Progress
 
 Living status. **Update at the end of every work session.** Rules live in `CLAUDE.md`, business logic in `MEMORY.md`.
 
@@ -118,6 +118,9 @@ _Last updated: 2026-11-14 (LIT Awards import)_
 | 2026-11-14 | Imported images carry `Asset.source` (link, title, categories, credit, details) instead of auto-creating custom categories | 68 award categories per year would flood the sidebar; source data stays searchable and groupable (Award tab) and keeps photographer credits |
 
 ## Log
+
+### 2026-11-14 (grid snap + link thumbnails)
+- Dragging cards snaps the dragged card's corner to the 24-unit grid (`snapDelta`/`GRID` in `canvas/viewport.ts`; Alt = free; resize and shapes don't snap). Pasting or dropping a web address now adds the page's preview image (og:image / twitter:image / apple-touch-icon) as an image card with `source` = site, page URL, title, so the Inspector links back: `src/sources/link/{parse,client}.ts`, dev-server proxy `/__link` in `vite.config.ts` (http(s) only, refuses non-public addresses incl. via redirects; replaced by the Tauri HTTP plugin later). Image addresses go through the same path. Tests: 52 pass, typecheck clean; proxy checked with curl (apple.com ok, localhost/LAN refused, page without image gives a message); **not tried in the browser UI yet**. No menu item yet (paste/drop only). Not committed.
 
 ### 2026-11-14 (bug pass)
 - Typecheck + 38 tests pass on the Mac. Fixed: Del/Backspace while a `<select>` (e.g. Inspector "+ Type") was focused removed the selected cards from the board; board-delete confirm wrongly said images are deleted (they stay in the Library). Committed in a97360e.
