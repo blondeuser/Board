@@ -2,28 +2,30 @@
 
 Living status. **Update at the end of every work session.** Rules live in `CLAUDE.md`, business logic in `MEMORY.md`.
 
-_Last updated: 2026-11-14 (end of day)_
+_Last updated: 2026-11-14 (docs merge)_
 
 ## Status
 
 | | |
 |---|---|
-| **Current phase** | Browser build with Library, meaning-search and Catppuccin theme done; next: lighting-technique detection research, then Tauri shell |
+| **Current phase** | Browser build with Library, meaning-search and Catppuccin theme done; next: lighting-technique eval (sigmoid scoring), 500-image canvas check, then Tauri shell |
 | **App** | Runs with `npm run dev` (port 5173). Boards, infinite canvas, notes, bento mode, Library (tabs, stacks, semantic search), colour + type + custom-category tags, Mocha/Latte theme |
-| **Tests** | 22 Vitest tests (colour, viewport, bento layout, type picking, library grouping, search) + Playwright smoke scripts in `scripts/`, all passing at last run |
-| **Hosting** | Local-only; repo not created yet. Everything since commit `a3e203d` is uncommitted (library, groups, restyle, theme, semantic search) |
+| **Tests** | 22 Vitest tests (colour, viewport, bento layout, type picking, library grouping, search) + Playwright smoke scripts in `scripts/`, all passing at last run (not re-run after the 2026-11-14 docs merge) |
+| **Hosting** | GitHub `blondeuser/Board` (public). First commit `4326d4f` pushed 2026-11-14 with all draft work |
 
 ## Resume here (next session)
 
-1. Lighting-technique detection: follow the research notes in `MEMORY.md` ("Lighting techniques"). First step: collect ~10 reference photos per technique (grazing, wall washing, scalloping, spotlight/accent, decorative), run zero-shot SigLIP prompts through an `eval-search.mjs`-style script, report which techniques separate well.
-2. Ask me whether to commit the uncommitted work (commit only when asked).
-3. Then: Tauri shell, with `models/` in bundled resources and embeddings moved to SQLite (see Decisions).
+1. **Lighting eval (riskiest part, do first).** Pick the final label list from `docs/LIGHTING_TAXONOMY.md` (~10-14). Collect 30-50 reference photos per label into `data/lighting-eval/<label>/` (not committed if large). Write `scripts/eval-lighting.mjs`: zero-shot with **sigmoid** scores (see CLAUDE.md "Zero-shot scoring"), per-label precision/recall + confusion pairs. Then a logistic-regression probe on the stored embeddings, same report. Decide: ship as-is / merge confusing labels / keep as research. Record result in `MEMORY.md`.
+2. **500-image canvas check** (`scripts/perf.mjs` with 500 real photos, pan/zoom/select). Keep custom canvas if smooth; else evaluate Konva (MIT). Not tldraw: needs a licence key in production.
+3. **Split `useBoardApp.ts`** by domain (see CLAUDE.md), then **Tauri shell**: `models/` + ONNX wasm in bundled resources (offline), SQLite per `docs/SQLITE_SCHEMA.md`, image URL paste via Tauri HTTP (fixes CORS). Test the model on macOS early.
+4. **`.bo` export/import** per `docs/BO_FORMAT.md` (needs `Asset.hash` first).
 
 ## Roadmap
 
 ### 0. Scaffold ✅
 - [x] Vite + React + TS + Vitest scaffolded (2026-11-14), canvas decision: custom DOM canvas (see Decisions)
-- [ ] Create GitHub repo and add it to `code-workspace/setup.sh`
+- [x] Create GitHub repo (`blondeuser/Board`, 2026-11-14)
+- [ ] Add it to `code-workspace/setup.sh`
 
 ### 1. Canvas ✅ first draft
 - [x] Infinite pan/zoom (wheel/pinch zoom to cursor, Space+drag or middle-mouse to pan; drag empty space to box-select)
@@ -50,7 +52,12 @@ _Last updated: 2026-11-14 (end of day)_
 
 ### 3. Storage
 - [x] IndexedDB (browser build)
-- [ ] SQLite + files on disk via Tauri; thumbnails; export/import backup
+- [ ] `Asset.hash` (SHA-256 of the original, computed on import + backfilled) — needed for `.bo` dedupe and for skipping duplicate imports
+- [ ] SQLite + files on disk via Tauri (`docs/SQLITE_SCHEMA.md`); thumbnails; one-time IndexedDB → SQLite migration
+- [ ] `.bo` export: one board → `.bo` (write to `.tmp`, then rename) — `docs/BO_FORMAT.md`
+- [ ] `.bo` import: dedupe by hash into the library, create the board; ignore `embeddings.bin` if the model differs
+- [ ] `.bo` file association + icon on Windows and macOS (Tauri bundle config)
+- [ ] Full-library backup/restore (later; same container idea)
 
 ### 4. Auto-categorize
 - [x] Colour palette extraction + colour families
@@ -59,7 +66,10 @@ _Last updated: 2026-11-14 (end of day)_
 - [ ] Style labels (minimal, brutalist, vintage...) and auto-grouping / clusters from the embeddings
 - [ ] Bundle model + ONNX wasm locally (now fetched from the Hugging Face hub / CDN on first use, ~210 MB, then cached) so it works offline
 - [ ] Auto-grouping / clusters
-- [ ] Lighting-technique detection (grazing, wall washing, scalloping, spotlight/accent, decorative) as a new tag group beside Type and Colour. Research done 2026-11-14 (see `MEMORY.md`). Steps: reference photos -> zero-shot prompt eval -> (if weak) small classifier on stored SigLIP embeddings + brightness-gradient/evenness/contrast features -> add tag group only if precision is good
+- [ ] Lighting-technique detection as a new tag group beside Type and Colour. Research done 2026-11-14 (see `MEMORY.md`, label candidates + prompts in `docs/LIGHTING_TAXONOMY.md`). Steps: final label list -> reference photos -> zero-shot eval with **sigmoid** scoring -> (if weak) logistic-regression probe on stored SigLIP embeddings + brightness-gradient/evenness/contrast features -> add tag group only if precision is good
+- [ ] Lighting corrections: confirm / reject / add a lighting label in the inspector; user labels stored separately from model labels and always win; they become training rows for the probe
+- [ ] Warm / neutral / cool hint from the palette (see `MEMORY.md` Colour) + filter
+- [ ] Vietnamese search: test SigLIP 2 (multilingual) if an ONNX build works in transformers.js; re-run `eval-search.mjs` before switching
 - [ ] Extra abilities (e.g. OCR for text in images) as separate lazy-loaded models, each in its own `models/<id>/` folder
 
 ### 5. Desktop shell
@@ -69,6 +79,9 @@ _Last updated: 2026-11-14 (end of day)_
 
 - Search by meaning is approximate: people queries return people ("the man" also returns some women), a query with no match can still return the nearest-looking image ("dragon" -> cat). Thresholds in `src/categorize/style/search.ts` (SEARCH_FLOOR/WINDOW), tuned on a small photo set only.
 - Type detection is approximate (zero-shot): similar types blur (UI design vs screenshot, logo vs typography). Keeps up to 2 types above a confidence threshold; thresholds in `pickTypes`.
+- `classify.worker.ts` scores types with softmax at a fixed scale of 100, not SigLIP's own `logit_scale`/`logit_bias` + sigmoid. Acceptable for single-choice Type; wrong for multi-label Lighting (labels would compete). Add a sigmoid path when lighting starts.
+- Search thresholds (`SEARCH_FLOOR` 0.025, `SEARCH_WINDOW` 0.03) were tuned on 15 photos; re-tune with a bigger library.
+- Model (~210 MB) and ONNX wasm load from huggingface.co / cdn.jsdelivr.net on first use: first run needs internet. Fixed by bundling in the Tauri step.
 - Pasting/dropping an image URL only works if the host allows CORS; otherwise a message asks you to save the file and drop it.
 - Canvas shows a 1280px thumbnail (originals kept); zooming far in on a big photo looks soft. Idea: swap in the original above ~200% zoom.
 - Reported lag when selecting ~12 photos: could not reproduce headless (150 fps, ~3ms/frame main-thread; `scripts/perf.mjs`). Thumbnails shipped as the likely fix (decoded size 48MB -> 5MB per 12MP photo). Needs confirming on the real machine; if it persists, ask for monitor/GPU + photo sizes and profile in Edge DevTools Performance.
@@ -83,8 +96,16 @@ _Last updated: 2026-11-14 (end of day)_
 | 2026-11-14 | Browser build first with IndexedDB; Tauri/SQLite later | Fast iteration; storage code is isolated in `src/storage/` |
 | 2026-11-14 | Model files live as plain files (`models/<id>/`, bundled in Tauri resources or downloaded once to app-data); embeddings + tags live in SQLite. No MongoDB | MongoDB is a server DB and breaks local-first; model binaries don't belong in a database |
 | 2026-11-14 | Search model is SigLIP base patch16-224 (q8) | Chosen by measurement on 15 photos; CLIP B/32 and B/16 were far worse on people queries |
+| 2026-11-14 | Tauri, not Electron | Smaller; on-device model already runs in the webview; no Node backend needed |
+| 2026-11-14 | No server / Vercel / MongoDB / cloud AI API | Nothing needs one; Vercel 4.5 MB body limit and no room for the model; keeps "images never leave the machine" |
+| 2026-11-14 | `.bo` = ZIP container, export/import of one board; library stays the master copy | Simple, crash-safe, inspectable; one module so it can change later |
+| 2026-11-14 | Lighting labels use sigmoid (independent) scoring | Effects combine in one image; softmax makes them compete |
+| 2026-11-14 | Lighting eval before building lighting UI | Riskiest feature: zero-shot may not separate grazing/washing, scallop/accent |
 
 ## Log
+
+### 2026-11-14 (docs merge with Claude planning session)
+- Merged a separate planning session into the docs: decisions (Tauri, no cloud, `.bo` format, sigmoid for lighting), extended lighting label candidates, mymind market notes, warm/cool caveat, Vietnamese-search note. New `docs/BO_FORMAT.md`, `docs/LIGHTING_TAXONOMY.md`, `docs/SQLITE_SCHEMA.md`. Fixed stale lines (CLIP → SigLIP, duplicate Search rule, repo status). Resume-here reordered: lighting eval → canvas check → split hook + Tauri → `.bo`. No code changed.
 
 ### 2026-11-14 (research: model storage + lighting)
 - Answered where the model is fetched/stored (huggingface.co + cdn.jsdelivr.net, then browser Cache Storage; images never leave the PC) and how to extend models (see Decisions). Researched lighting design techniques and feasibility of auto-detecting them; notes in `MEMORY.md`. No code changed. Dev server still running on 5173 (background task).
