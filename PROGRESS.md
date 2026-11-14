@@ -105,7 +105,7 @@ _Last updated: 2026-11-14 (.bo export/import)_
 ## Log
 
 ### 2026-11-14 (.bo export/import)
-- Save a board as `.bo` (ZIP with all original image files) and open one again: `src/storage/bo/{write,read,hash}.ts`, buttons in the sidebar Boards header, `exportBoard`/`importBo` in `useBoardApp`. Added dependency `fflate` (named in the spec). `Asset.hash` added. 5 new tests (27 total). Typecheck + tests pass; **not tried in a browser yet**. Not committed.
+- Save a board as `.bo` (ZIP with all original image files) and open one again: `src/storage/bo/{write,read,hash}.ts`, buttons in the sidebar Boards header, `exportBoard`/`importBo` in `useBoardApp`. Added dependency `fflate` (named in the spec). `Asset.hash` added. 5 new tests (27 total). Typecheck + tests pass; **not tried in a browser yet**. Commit `628b436`.
 
 ### 2026-11-14 (docs merge with Claude planning session)
 - Merged a separate planning session into the docs: decisions (Tauri, no cloud, `.bo` format, sigmoid for lighting), extended lighting label candidates, mymind market notes, warm/cool caveat, Vietnamese-search note. New `docs/BO_FORMAT.md`, `docs/LIGHTING_TAXONOMY.md`, `docs/SQLITE_SCHEMA.md`. Fixed stale lines (CLIP → SigLIP, duplicate Search rule, repo status). Resume-here reordered: lighting eval → canvas check → split hook + Tauri → `.bo`. No code changed.
