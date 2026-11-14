@@ -16,4 +16,3 @@ Thumbs.db
 # Per-machine agent tooling, smoke screenshots, Playwright state
 agent/
 smoke*.png
-.playwright/
