@@ -57,6 +57,12 @@ describe('planImport', () => {
     expect(first.categoryIds).toEqual([plan.addCategories[0].id])
   })
 
+  it('keeps shapes, which have no image', () => {
+    const c = content()
+    c.placements.push({ id: 'sh', boardId: c.board.id, kind: 'shape', shape: 'ellipse', assetId: '', x: 0, y: 0, w: 50, h: 50, z: 9 })
+    const plan = planImport(c, { hashes: new Map(), categories: [] }, ids)
+    expect(plan.placements.some((p) => p.kind === 'shape' && p.shape === 'ellipse')).toBe(true)
+  })
   it('reuses library images with the same hash and matches categories by name', () => {
     const plan = planImport(content(), { hashes: new Map([['h1', 'lib1']]), categories: [{ id: 'lc', name: 'warm', color: '#0f0' }] }, ids)
     expect(plan.addAssets.map((x) => x.asset.hash)).toEqual(['h2'])

@@ -36,6 +36,13 @@ export function MenuBar({ app, sidebarOpen, onToggleSidebar, onLitImport }: { ap
         { label: 'Save As…', keys: `${shift}${mod}S`, disabled: !onBoard, run: () => void app.saveBoardAs() },
         'sep',
         { label: 'Export Selected as JPEG…', disabled: !picked.length, run: () => void app.exportJpeg(picked) },
+        'sep',
+        {
+          label: 'Clear Everything…',
+          run: () => {
+            if (confirm('Delete ALL boards, images, notes and categories from this browser? This cannot be undone. Boards saved as .bo files are not affected.')) void app.clearAll()
+          },
+        },
       ],
     },
     {

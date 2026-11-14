@@ -119,6 +119,12 @@ _Last updated: 2026-11-14 (LIT Awards import)_
 
 ## Log
 
+### 2026-11-14 (bug pass)
+- Typecheck + 38 tests pass on the Mac. Fixed: Del/Backspace while a `<select>` (e.g. Inspector "+ Type") was focused removed the selected cards from the board; board-delete confirm wrongly said images are deleted (they stay in the Library). Not committed.
+- Added File > Clear Everything… (confirm, then `db.clearAll()` + reload): wipes boards, images, thumbnails, notes, categories. Keeps the downloaded image model. Typecheck + tests pass; not yet clicked through in the browser.
+- Free layout: select exactly 2 cards, click the link button (toolbar, top-left) to draw a curved line; click again to remove. `Connection` type, IndexedDB v3 store `connections`, `src/canvas/connector.ts` (+3 tests), lines drawn under the cards and follow drags; removing a card or board drops its lines. **Not in `.bo` yet** (lines are lost on save/open; needs a format change, see `docs/BO_FORMAT.md`). Typecheck + 41 tests pass; not yet checked in the browser. Not committed.
+- Free layout: bottom bar (above the zoom bar) now holds the link button plus shape tools (rectangle, circle/ellipse, triangle, diamond): pick a tool, drag on the canvas (Shift = equal sides, Esc cancels). Shapes are `Placement` kind `shape` (move, free resize, colour in the inspector, can be linked; saved in `.bo`; hidden in cards mode). Typecheck + 42 tests pass; not yet checked in the browser. Not committed.
+
 ### 2026-11-14 (JPEG export)
 - Select images (board or Library) and export the originals as JPEG: download button in the Inspector, or File > Export Selected as JPEG…. One image gives `image.jpg`, several give `images.zip` (`exportJpeg` in `useBoardApp`; quality 0.92, transparent areas become white). Checked in Chrome (zip of 2, single via menu, valid JPEG); typecheck passes. Not committed.
 

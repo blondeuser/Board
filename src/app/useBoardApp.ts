@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { NOTE_TINTS, type Asset, type AssetSource, type Board, type Category, type Placement, type ViewState } from '../shared/types'
+import { NOTE_TINTS, type Asset, type AssetSource, type Board, type Category, type Connection, type Placement, type ShapeKind, type ViewState } from '../shared/types'
 import { newId } from '../shared/id'
 import { db } from '../storage/db'
 import { importImage, makeThumbnail } from '../items/importImage'
@@ -37,6 +37,7 @@ export function useBoardApp() {
   const [assets, setAssets] = useState<Record<string, Asset>>({})
   const [placements, setPlacements] = useState<Placement[]>([])
   const [categories, setCategories] = useState<Category[]>([])
+  const [connections, setConnections] = useState<Connection[]>([])
   const [urls, setUrls] = useState<Record<string, string>>({})
   const [selection, setSelection] = useState<string[]>([])
   const [filter, setFilter] = useState<Filter>({ colors: [], categories: [], types: [] })
@@ -49,8 +50,8 @@ export function useBoardApp() {
   const [modelProgress, setModelProgress] = useState<number | null>(null)
 
   // Latest state for callbacks that fire after renders (drag end, debounced saves).
-  const latest = useRef({ boards, placements, assets, activeId, categories })
-  latest.current = { boards, placements, assets, activeId, categories }
+  const latest = useRef({ boards, placements, assets, activeId, categories, connections })
+  latest.current = { boards, placements, assets, activeId, categories, connections }
   const started = useRef(false)
   const tried = useRef(new Set<string>())
   const warned = useRef(false)
@@ -69,7 +70,7 @@ export function useBoardApp() {
     if (started.current) return // StrictMode runs effects twice; don't seed two first boards
     started.current = true
     void (async () => {
-      let [b, a, p, c] = await Promise.all([db.boards(), db.assets(), db.placements(), db.categories()])
+      let [b, a, p, c, lines] = await Promise.all([db.boards(), db.assets(), db.placements(), db.categories(), db.connections()])
       if (!b.length) {
         const first: Board = { id: newId(), name: 'Board 1', createdAt: Date.now(), view: DEFAULT_VIEW }
         await db.saveBoards([first])
@@ -81,6 +82,7 @@ export function useBoardApp() {
       setAssets(Object.fromEntries(a.map((x) => [x.id, x])))
       setPlacements(p)
       setCategories(c)
+      setConnections(lines)
       setReady(true)
       void navigator.storage?.persist?.()
     })()
@@ -141,12 +143,22 @@ export function useBoardApp() {
     void db.saveBoards(next.filter((b) => b.id === id))
   }, [])
 
+  /** Remove the lines attached to these cards (their card was removed from the board or deleted). */
+  const dropConnections = useCallback((placementIds: string[]) => {
+    const gone = new Set(placementIds)
+    const dead = latest.current.connections.filter((c) => gone.has(c.from) || gone.has(c.to)).map((c) => c.id)
+    if (!dead.length) return
+    setConnections((l) => l.filter((c) => !dead.includes(c.id)))
+    void db.deleteConnections(dead)
+  }, [])
+
   /** Library delete: removes the images from every board and from disk. Board removal never calls this. */
   const deleteAssets = useCallback((assetIds: string[]) => {
     const gone = new Set(assetIds)
     if (!gone.size) return
     const onBoards = latest.current.placements.filter((p) => gone.has(p.assetId)).map((p) => p.id)
     setPlacements((ps) => ps.filter((p) => !gone.has(p.assetId)))
+    dropConnections(onBoards)
     setAssets((a) => Object.fromEntries(Object.entries(a).filter(([id]) => !gone.has(id))))
     setUrls((u) => {
       assetIds.forEach((id) => u[id] && URL.revokeObjectURL(u[id]))
@@ -157,7 +169,7 @@ export function useBoardApp() {
     setSelection([])
     void db.deletePlacements(onBoards)
     void db.deleteAssets(assetIds)
-  }, [])
+  }, [dropConnections])
 
   const addToBoard = useCallback((assetIds: string[], boardId: string) => {
     const { placements: ps, assets: all } = latest.current
@@ -189,6 +201,7 @@ export function useBoardApp() {
       const next = bs.filter((b) => b.id !== id)
       setBoards(next)
       setPlacements(remaining)
+      setConnections((l) => l.filter((c) => c.boardId !== id))
       void db.deleteBoard(id)
       if (latest.current.activeId === id) selectBoard(next[0].id)
     },
@@ -247,6 +260,20 @@ export function useBoardApp() {
     [notify],
   )
 
+  /** Draw a curved line between two cards, or remove it if they are already linked. */
+  const toggleConnection = useCallback((a: string, b: string) => {
+    const { connections: list, activeId: boardId } = latest.current
+    const existing = list.find((c) => (c.from === a && c.to === b) || (c.from === b && c.to === a))
+    if (existing) {
+      setConnections((l) => l.filter((c) => c.id !== existing.id))
+      void db.deleteConnections([existing.id])
+      return
+    }
+    const line: Connection = { id: newId(), boardId, from: a, to: b }
+    setConnections((l) => [...l, line])
+    void db.saveConnections([line])
+  }, [])
+
   const patchPlacements = useCallback((patches: Record<string, Partial<Placement>>) => {
     setPlacements((list) => list.map((p) => (patches[p.id] ? { ...p, ...patches[p.id] } : p)))
   }, [])
@@ -267,6 +294,16 @@ export function useBoardApp() {
     void db.savePlacements([note])
     setSelection([note.id])
     setEditingId(note.id)
+  }, [])
+
+  /** Add a shape covering `r` (world units) on the open board, on top, and select it. */
+  const addShape = useCallback((shape: ShapeKind, r: { x: number; y: number; w: number; h: number }) => {
+    const { placements: ps, activeId: boardId } = latest.current
+    const z = Math.max(0, ...ps.filter((p) => p.boardId === boardId).map((p) => p.z)) + 1
+    const s: Placement = { id: newId(), boardId, kind: 'shape', shape, assetId: '', tint: NOTE_TINTS[0], ...r, z }
+    setPlacements((p) => [...p, s])
+    void db.savePlacements([s])
+    setSelection([s.id])
   }, [])
 
   const editNote = useCallback((id: string, text: string) => {
@@ -304,11 +341,24 @@ export function useBoardApp() {
     (ids: string[]) => {
       if (!ids.length) return
       setPlacements((ps) => ps.filter((p) => !ids.includes(p.id))) // the images stay in the library
+      dropConnections(ids)
       setSelection([])
       void db.deletePlacements(ids)
     },
-    [],
+    [dropConnections],
   )
+
+  /** Wipe the whole local library and start over (the page reloads into an empty Board 1). */
+  const clearAll = useCallback(async () => {
+    window.clearTimeout(viewTimer.current) // a pending view save would write the old board back
+    try {
+      await db.clearAll()
+      localStorage.removeItem('board.active')
+    } catch {
+      return notify('Could not clear the library.')
+    }
+    window.location.reload()
+  }, [notify])
 
   // ---- tagging ----
   const updateAssets = useCallback((assetIds: string[], fn: (a: Asset) => Asset) => {
@@ -605,14 +655,14 @@ export function useBoardApp() {
   )
 
   return {
-    allPlacements: placements,
+    allPlacements: placements, connections, toggleConnection,
     query, setQuery, semantic, searchPending,
     screen, setScreen, librarySelection, setLibrarySelection, deleteAssets, addToBoard,
-    tagging, modelProgress, editingId, setEditingId, addNote, editNote, setTint, setMode,
+    tagging, modelProgress, editingId, setEditingId, addNote, addShape, editNote, setTint, setMode,
     ready, boards, board, activeId, assets, urls, categories, selection, filter, message,
     boardPlacements,
     setSelection, selectBoard, addBoard, createBoard, renameBoard, removeBoard, setView,
-    saveBoard, saveBoardAs, importBo, exportJpeg,
+    saveBoard, saveBoardAs, importBo, exportJpeg, clearAll,
     importBlobs, patchPlacements, commitPlacements, bringToFront, removeFromBoard,
     toggleTag, addCategory, removeCategory, toggleFilter, clearFilter, matches, notify,
   }

@@ -60,12 +60,16 @@ export interface AssetSource {
 
 export const NOTE_TINTS = ['#f9e2af', '#f5c2e7', '#a6e3a1', '#89dceb', '#cba6f7'] as const
 
-/** An image (references an Asset) or a text note card on a board's canvas. `kind` missing = image. */
+export type ShapeKind = 'rect' | 'ellipse' | 'triangle' | 'diamond'
+
+/** An image (references an Asset), a text note card or a drawn shape on a board's canvas. `kind` missing = image. */
 export interface Placement {
   id: string
   boardId: string
-  kind?: 'image' | 'note'
-  /** Empty for notes. */
+  kind?: 'image' | 'note' | 'shape'
+  /** Which geometry, for `kind: 'shape'` (colour is `tint`). */
+  shape?: ShapeKind
+  /** Empty for notes and shapes. */
   assetId: string
   text?: string
   tint?: string
@@ -74,6 +78,15 @@ export interface Placement {
   w: number
   h: number
   z: number
+}
+
+/** A curved line linking two cards on a free-layout board. */
+export interface Connection {
+  id: string
+  boardId: string
+  /** Placement ids (not assets: the same image can sit twice on a board). */
+  from: string
+  to: string
 }
 
 export interface Category {

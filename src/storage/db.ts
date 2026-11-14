@@ -1,10 +1,10 @@
-import type { Asset, Board, Category, Placement } from '../shared/types'
+import type { Asset, Board, Category, Connection, Placement } from '../shared/types'
 
 // IndexedDB for the browser build. Swapped for SQLite + files in the Tauri step (see PROGRESS).
 const DB_NAME = 'board'
-const VERSION = 2
+const VERSION = 3
 
-type StoreName = 'boards' | 'assets' | 'placements' | 'categories' | 'blobs' | 'thumbs'
+type StoreName = 'boards' | 'assets' | 'placements' | 'categories' | 'blobs' | 'thumbs' | 'connections'
 
 let dbPromise: Promise<IDBDatabase> | null = null
 
@@ -21,6 +21,7 @@ function open(): Promise<IDBDatabase> {
         db.createObjectStore('placements', { keyPath: 'id' }).createIndex('boardId', 'boardId')
       }
       if (!db.objectStoreNames.contains('thumbs')) db.createObjectStore('thumbs') // v2: key = asset id, value = display-size Blob
+      if (!db.objectStoreNames.contains('connections')) db.createObjectStore('connections', { keyPath: 'id' }) // v3: lines between cards
     }
     req.onsuccess = () => {
       // Let a newer version of the app (another tab) upgrade the database instead of being blocked by this tab.
@@ -64,12 +65,18 @@ const putAll = (store: Exclude<StoreName, 'blobs'>, values: object[]): Promise<v
     values.forEach((v) => s.put(v))
   })
 
+const ALL_STORES: StoreName[] = ['boards', 'assets', 'placements', 'categories', 'blobs', 'thumbs', 'connections']
+
 export const db = {
+  /** Deletes everything: boards, images, thumbnails, tags, categories. */
+  clearAll: () => tx(ALL_STORES, 'readwrite', (t) => ALL_STORES.forEach((s) => t.objectStore(s).clear())),
   boards: () => getAll<Board>('boards'),
   saveBoards: (b: Board[]) => putAll('boards', b),
   deleteBoard: (id: string) =>
-    tx(['boards', 'placements'], 'readwrite', async (t) => {
+    tx(['boards', 'placements', 'connections'], 'readwrite', async (t) => {
       t.objectStore('boards').delete(id)
+      const lines = await wrap(t.objectStore('connections').getAll() as IDBRequest<Connection[]>)
+      lines.filter((c) => c.boardId === id).forEach((c) => t.objectStore('connections').delete(c.id))
       const keys = await wrap(t.objectStore('placements').index('boardId').getAllKeys(id))
       keys.forEach((k) => t.objectStore('placements').delete(k))
     }),
@@ -100,6 +107,11 @@ export const db = {
   savePlacements: (p: Placement[]) => putAll('placements', p),
   deletePlacements: (ids: string[]) =>
     tx(['placements'], 'readwrite', (t) => ids.forEach((id) => t.objectStore('placements').delete(id))),
+
+  connections: () => getAll<Connection>('connections'),
+  saveConnections: (c: Connection[]) => putAll('connections', c),
+  deleteConnections: (ids: string[]) =>
+    tx(['connections'], 'readwrite', (t) => ids.forEach((id) => t.objectStore('connections').delete(id))),
 
   categories: () => getAll<Category>('categories'),
   saveCategories: (c: Category[]) => putAll('categories', c),

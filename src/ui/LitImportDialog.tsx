@@ -66,7 +66,7 @@ export function LitImportDialog({ lit, onShowLibrary }: { lit: LitImport; onShow
               </span>
               <div className="checklist">
                 {index.categories.map((c) => (
-                  <label key={c}>
+                  <label key={c} className={picked.includes(c) ? 'on' : ''}>
                     <input type="checkbox" checked={picked.includes(c)} onChange={() => toggle(c)} />
                     <span>{c}</span>
                     <span className="muted">{counts.get(c)}</span>

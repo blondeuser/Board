@@ -11,6 +11,8 @@ interface Props {
   assetIds: string[]
   /** Selected note cards (board view only). */
   notes?: Placement[]
+  /** Selected shapes (board view only); they have a colour but no tags. */
+  shapes?: Placement[]
   count: number
   onRemove: () => void
   removeTitle: string
@@ -19,13 +21,14 @@ interface Props {
 }
 
 /** Floating tag panel for the current selection. Edits apply to every selected image. */
-export function Inspector({ app, assetIds, notes = [], count, onRemove, removeTitle, library }: Props) {
+export function Inspector({ app, assetIds, notes = [], shapes = [], count, onRemove, removeTitle, library }: Props) {
   if (!count) return null
   const assets = assetIds.map((id) => app.assets[id]).filter(Boolean)
   const has = (kind: 'colors' | 'categoryIds', v: string) => assets.length > 0 && assets.every((a) => a[kind].includes(v))
   const hasType = (v: string) => assets.length > 0 && assets.every((a) => a.types?.includes(v))
   const typesOn = [...new Set(assets.flatMap((a) => a.types ?? []))]
   const detecting = assets.some((a) => a.types === undefined)
+  const tinted = [...notes, ...shapes]
   const palette = assets.length === 1 ? assets[0].palette : []
   const source = assets.length === 1 ? assets[0].source : undefined
   const boardNames = library
@@ -35,7 +38,7 @@ export function Inspector({ app, assetIds, notes = [], count, onRemove, removeTi
   return (
     <div className="inspector" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
       <header>
-        <strong>{count === 1 ? (notes.length ? 'Note' : 'Image') : `${count} ${notes.length ? 'cards' : 'images'}`}</strong>
+        <strong>{count === 1 ? (notes.length ? 'Note' : shapes.length ? 'Shape' : 'Image') : `${count} ${notes.length || shapes.length ? 'cards' : 'images'}`}</strong>
         <span className="row">
         <button className="icon" title="Export as JPEG" disabled={!assetIds.length} onClick={() => void app.exportJpeg(assetIds)}>
           <DownloadIcon />
@@ -84,12 +87,12 @@ export function Inspector({ app, assetIds, notes = [], count, onRemove, removeTi
         </>
       )}
 
-      {notes.length > 0 && (
+      {tinted.length > 0 && (
         <>
-          <h3>Note colour</h3>
+          <h3>{notes.length ? 'Note colour' : 'Shape colour'}</h3>
           <div className="tints">
             {NOTE_TINTS.map((t) => (
-              <button key={t} className={'swatch' + (notes.every((n) => n.tint === t) ? ' on' : '')} style={{ background: t }} title="Tint" onClick={() => app.setTint(notes.map((n) => n.id), t)} />
+              <button key={t} className={'swatch' + (tinted.every((n) => n.tint === t) ? ' on' : '')} style={{ background: t }} title="Tint" onClick={() => app.setTint(tinted.map((n) => n.id), t)} />
             ))}
           </div>
         </>

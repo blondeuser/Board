@@ -67,7 +67,7 @@ export function Sidebar({ app }: { app: BoardApp }) {
                   title="Delete board"
                   onClick={(e) => {
                     e.stopPropagation()
-                    if (confirm(`Delete "${b.name}" and its images?`)) app.removeBoard(b.id)
+                    if (confirm(`Delete the board "${b.name}"? Its images stay in the Library.`)) app.removeBoard(b.id)
                   }}
                 >
                   <CloseIcon />

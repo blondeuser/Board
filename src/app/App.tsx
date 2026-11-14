@@ -9,14 +9,22 @@ import { blobsFromTransfer } from '../items/importImage'
 import { MenuBar } from '../ui/MenuBar'
 import { Sidebar } from '../ui/Sidebar'
 import { Inspector } from '../ui/Inspector'
+import type { ShapeKind } from '../shared/types'
 import { Library } from '../library/Library'
-import { BentoIcon, FitIcon, MinusIcon, NoteIcon, PlusIcon } from '../ui/icons'
+import { BentoIcon, DiamondIcon, EllipseIcon, FitIcon, LinkIcon, RectIcon, TriangleIcon, MinusIcon, NoteIcon, PlusIcon } from '../ui/icons'
 
 function confirmDelete(app: BoardApp, assetIds: string[]) {
   const boards = new Set(app.allPlacements.filter((p) => assetIds.includes(p.assetId)).map((p) => p.boardId)).size
   const what = assetIds.length === 1 ? 'this image' : `${assetIds.length} images`
   if (confirm(`Delete ${what} from the library${boards ? ` and ${boards} board${boards > 1 ? 's' : ''}` : ''}? This cannot be undone.`)) app.deleteAssets(assetIds)
 }
+
+const SHAPE_TOOLS: [ShapeKind, string, () => React.JSX.Element][] = [
+  ['rect', 'rectangle', RectIcon],
+  ['ellipse', 'circle / ellipse', EllipseIcon],
+  ['triangle', 'triangle', TriangleIcon],
+  ['diamond', 'diamond', DiamondIcon],
+]
 
 export function App() {
   const app = useBoardApp()
@@ -30,6 +38,13 @@ export function App() {
   const [sidebarOpen, setSidebarOpen] = useState(() => {
     try { return localStorage.getItem('board.sidebar') !== 'hidden' } catch { return true }
   })
+  const [tool, setTool] = useState<ShapeKind | null>(null)
+  useEffect(() => {
+    if (!tool) return
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && setTool(null)
+    window.addEventListener('keydown', esc)
+    return () => window.removeEventListener('keydown', esc)
+  }, [tool])
   const [peek, setPeek] = useState(false)
   const peekTimer = useRef<number>(0)
   const toggleSidebar = useCallback(() => {
@@ -84,7 +99,7 @@ export function App() {
         toggleSidebar()
         return
       }
-      if ((e.target as HTMLElement).matches?.('input, textarea') || (e.target as HTMLElement).closest?.('.modal')) return
+      if ((e.target as HTMLElement).matches?.('input, textarea, select') || (e.target as HTMLElement).closest?.('.modal')) return
       if (a.screen === 'library') {
         const sel = a.librarySelection
         if ((e.key === 'Delete' || e.key === 'Backspace') && sel.length) confirmDelete(a, sel)
@@ -115,12 +130,12 @@ export function App() {
   const bento = app.board?.mode === 'bento'
   const { boardPlacements, assets } = app
   const bentoItems = useMemo(
-    () => boardPlacements.map((p) => ({ id: p.id, x: p.x, y: p.y, w: p.w, h: p.h, kind: p.kind ?? 'image', textLength: p.text?.length })),
+    () => boardPlacements.filter((p) => p.kind !== 'shape').map((p) => ({ id: p.id, x: p.x, y: p.y, w: p.w, h: p.h, kind: p.kind === 'note' ? 'note' as const : 'image' as const, textLength: p.text?.length })),
     [boardPlacements],
   )
   const bentoRects = useMemo(() => (bento ? bentoLayout(bentoItems) : null), [bento, bentoItems])
   const shown = useMemo(
-    () => (bentoRects ? boardPlacements.map((p) => ({ ...p, ...bentoRects[p.id] })) : boardPlacements),
+    () => (bentoRects ? boardPlacements.filter((p) => p.kind !== 'shape').map((p) => ({ ...p, ...bentoRects[p.id] })) : boardPlacements),
     [bentoRects, boardPlacements],
   )
   void assets
@@ -141,10 +156,12 @@ export function App() {
     const next = bento ? 'free' : 'bento'
     app.setMode(next)
     app.setSelection([])
+    setTool(null)
     if (next === 'bento') app.setView({ ...view, y: 0 }) // grid zoom/centring is handled by the canvas; start at the top
     else fit(app.boardPlacements)
   }
   const selectedPlacements = app.boardPlacements.filter((p) => app.selection.includes(p.id))
+  const linked = selectedPlacements.length === 2 && app.connections.some((c) => selectedPlacements.every((p) => p.id === c.from || p.id === c.to))
   const filtering = app.filter.colors.length + app.filter.categories.length + app.filter.types.length > 0
 
   return (
@@ -175,13 +192,16 @@ export function App() {
           viewportRef={viewportRef}
           view={view}
           placements={shown}
+          connections={app.connections}
           locked={bento}
+          tool={tool}
+          onDraw={(r) => { if (tool) app.addShape(tool, r); setTool(null) }}
           editingId={app.editingId}
           onStartEdit={app.setEditingId}
           onEditNote={app.editNote}
           urls={app.urls}
           selection={app.selection}
-          dimmed={(p) => filtering && (p.kind === 'note' || !app.matches(p.assetId))}
+          dimmed={(p) => filtering && (p.kind === 'note' || p.kind === 'shape' || !app.matches(p.assetId))}
           onView={app.setView}
           onSelect={app.setSelection}
           onBringToFront={app.bringToFront}
@@ -193,10 +213,18 @@ export function App() {
           <button className="icon" title="New note" disabled={bento} onClick={() => app.addNote(worldPointAt())}><NoteIcon /></button>
           <button className={'icon' + (bento ? ' on' : '')} title={bento ? 'Back to free layout' : 'Cards mode (bento grid)'} aria-pressed={bento} onClick={toggleBento}><BentoIcon /></button>
         </div>
+        {!bento && <div className="drawbar" onPointerDown={(e) => e.stopPropagation()}>
+          <button className={'icon' + (linked ? ' on' : '')} title={bento ? 'Links are only in free layout' : linked ? 'Remove the line between the 2 selected cards' : 'Draw a curved line between the 2 selected cards'} disabled={bento || selectedPlacements.length !== 2} onClick={() => app.toggleConnection(selectedPlacements[0].id, selectedPlacements[1].id)}><LinkIcon /></button>
+          <hr />
+          {SHAPE_TOOLS.map(([id, label, Icon]) => (
+            <button key={id} className={'icon' + (tool === id ? ' on' : '')} title={`Draw a ${label}: drag on the canvas (Shift = equal sides, Esc cancels)`} aria-pressed={tool === id} onClick={() => setTool(tool === id ? null : id)}><Icon /></button>
+          ))}
+        </div>}
         <Inspector
           app={app}
           assetIds={[...new Set(selectedPlacements.filter((p) => p.assetId).map((p) => p.assetId))]}
           notes={selectedPlacements.filter((p) => p.kind === 'note')}
+          shapes={selectedPlacements.filter((p) => p.kind === 'shape')}
           count={selectedPlacements.length}
           removeTitle="Remove from board (Del). The image stays in the library."
           onRemove={() => app.removeFromBoard(selectedPlacements.map((p) => p.id))}

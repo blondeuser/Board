@@ -1,6 +1,7 @@
 import { memo, useEffect, useRef, useState, type CSSProperties, type RefObject } from 'react'
-import type { Placement, ViewState } from '../shared/types'
+import type { Connection, Placement, ShapeKind, ViewState } from '../shared/types'
 import { clampZoom, screenToWorld, zoomAt } from './viewport'
+import { connectorPath } from './connector'
 import { BENTO_COLUMNS, BENTO_CELL, BENTO_GAP } from './bento'
 
 const BENTO_PAD = 40
@@ -18,11 +19,16 @@ interface Props {
   viewportRef: RefObject<HTMLDivElement | null>
   view: ViewState
   placements: Placement[]
+  /** Curved lines between cards; drawn in free layout only. */
+  connections: Connection[]
   urls: Record<string, string>
   selection: string[]
   /** Bento mode: cards are auto-placed, so moving/resizing is off. */
   locked: boolean
   editingId: string
+  /** Shape being drawn: drag on the canvas to place it. */
+  tool: ShapeKind | null
+  onDraw: (r: { x: number; y: number; w: number; h: number }) => void
   dimmed: (p: Placement) => boolean
   onStartEdit: (id: string) => void
   onEditNote: (id: string, text: string) => void
@@ -39,6 +45,7 @@ type Drag =
   | { kind: 'marquee'; sx: number; sy: number; base: string[]; moved: boolean; shift: boolean }
   | { kind: 'move'; sx: number; sy: number; origs: Map<string, Placement>; moved: boolean; clickedId: string; shift: boolean }
   | { kind: 'resize'; sx: number; sy: number; orig: Placement }
+  | { kind: 'draw'; sx: number; sy: number; moved: boolean; shift: boolean; rect: { x: number; y: number; w: number; h: number } | null }
 
 export function Canvas(props: Props) {
   const { viewportRef, placements, urls, selection } = props
@@ -114,6 +121,10 @@ export function Canvas(props: Props) {
       drag.current = { kind: 'pan', sx: e.clientX, sy: e.clientY, view: p.view, moved: false }
       return
     }
+    if (p.tool && !p.locked) {
+      drag.current = { kind: 'draw', sx: e.clientX, sy: e.clientY, moved: false, shift: e.shiftKey, rect: null }
+      return
+    }
     if (!itemEl) {
       // Empty space: drag draws a selection box (Shift adds to the current selection).
       drag.current = { kind: 'marquee', sx: e.clientX, sy: e.clientY, base: e.shiftKey ? p.selection : [], moved: false, shift: e.shiftKey }
@@ -152,6 +163,18 @@ export function Canvas(props: Props) {
     if (d.kind === 'pan') {
       if (Math.abs(dx) + Math.abs(dy) > 3) d.moved = true
       p.onView({ ...d.view, x: p.locked ? d.view.x : d.view.x + dx, y: d.view.y + dy })
+    } else if (d.kind === 'draw') {
+      if (Math.abs(dx) + Math.abs(dy) > 3) d.moved = true
+      if (!d.moved) return
+      const r = e.currentTarget.getBoundingClientRect()
+      const side = Math.max(Math.abs(dx), Math.abs(dy))
+      const w = e.shiftKey ? side : Math.abs(dx) // Shift = square / circle
+      const h = e.shiftKey ? side : Math.abs(dy)
+      const x = (dx < 0 ? d.sx - w : d.sx) - r.left
+      const y = (dy < 0 ? d.sy - h : d.sy) - r.top
+      setBox({ x, y, w, h })
+      const a = screenToWorld(p.view, x, y)
+      d.rect = { x: a.x, y: a.y, w: w / p.view.zoom, h: h / p.view.zoom }
     } else if (d.kind === 'marquee') {
       if (Math.abs(dx) + Math.abs(dy) > 3) d.moved = true
       if (!d.moved) return
@@ -174,7 +197,9 @@ export function Canvas(props: Props) {
       p.onTransient(patch)
     } else {
       const w = Math.max(24, d.orig.w + dx / p.view.zoom)
-      p.onTransient({ [d.orig.id]: { w, h: (w * d.orig.h) / d.orig.w } })
+      // Images and notes keep their aspect; shapes resize freely.
+      const h = d.orig.kind === 'shape' ? Math.max(24, d.orig.h + dy / p.view.zoom) : (w * d.orig.h) / d.orig.w
+      p.onTransient({ [d.orig.id]: { w, h } })
     }
   }
 
@@ -185,6 +210,9 @@ export function Canvas(props: Props) {
     const p = live.current
     if (d.kind === 'pan') {
       e.currentTarget.style.cursor = ''
+    } else if (d.kind === 'draw') {
+      setBox(null)
+      if (d.rect && d.rect.w >= 8 && d.rect.h >= 8) p.onDraw(d.rect)
     } else if (d.kind === 'marquee') {
       setBox(null)
       if (!d.moved && !d.shift) p.onSelect([])
@@ -201,7 +229,7 @@ export function Canvas(props: Props) {
   return (
     <div
       ref={viewportRef}
-      className="viewport"
+      className={'viewport' + (props.tool ? ' drawing' : '')}
       style={{ backgroundPosition: `${view.x}px ${view.y}px`, backgroundSize: `${dots}px ${dots}px`, '--dot': dots < 9 ? 0 : 1 } as CSSProperties}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
@@ -220,6 +248,15 @@ export function Canvas(props: Props) {
       onContextMenu={(e) => e.preventDefault()}
     >
       <div className={'world' + (props.locked ? ' bento' : '')} style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.zoom})`, '--inv': inv } as CSSProperties}>
+        {!props.locked && (
+          <svg className="lines" width="1" height="1" aria-hidden>
+            {props.connections.map((l) => {
+              const a = placements.find((p) => p.id === l.from)
+              const b = placements.find((p) => p.id === l.to)
+              return a && b ? <path key={l.id} d={connectorPath(a, b)} /> : null
+            })}
+          </svg>
+        )}
         {placements.map((p) => (
           <Item
             key={p.id}
@@ -243,6 +280,13 @@ export function Canvas(props: Props) {
   )
 }
 
+const SHAPES: Record<ShapeKind, React.ReactNode> = {
+  rect: <rect x="2" y="2" width="96" height="96" />,
+  ellipse: <ellipse cx="50" cy="50" rx="48" ry="48" />,
+  triangle: <polygon points="50,2 98,98 2,98" />,
+  diamond: <polygon points="50,2 98,50 50,98 2,50" />,
+}
+
 interface ItemProps {
   p: Placement
   url?: string
@@ -255,13 +299,16 @@ interface ItemProps {
 
 const Item = memo(function Item({ p, url, selected, dimmed, locked, editing, onEditNote }: ItemProps) {
   const note = p.kind === 'note'
+  const shape = p.kind === 'shape'
   return (
     <div
-      className={'item' + (note ? ' note' : '') + (selected ? ' selected' : '') + (dimmed ? ' dimmed' : '') + (locked ? ' locked' : '')}
+      className={'item' + (note ? ' note' : '') + (shape ? ' shape' : '') + (selected ? ' selected' : '') + (dimmed ? ' dimmed' : '') + (locked ? ' locked' : '')}
       data-pid={p.id}
-      style={{ left: p.x, top: p.y, width: p.w, height: p.h, zIndex: p.z, ...(note ? { background: p.tint } : {}) }}
+      style={{ left: p.x, top: p.y, width: p.w, height: p.h, zIndex: p.z, ...(note ? { background: p.tint } : {}), ...(shape ? { '--tint': p.tint } : {}) } as CSSProperties}
     >
-      {note ? (
+      {shape ? (
+        <svg viewBox="0 0 100 100" preserveAspectRatio="none" width="100%" height="100%" aria-hidden>{SHAPES[p.shape ?? 'rect']}</svg>
+      ) : note ? (
         editing ? (
           <textarea
             autoFocus
