@@ -119,6 +119,13 @@ _Last updated: 2026-11-14 (LIT Awards import)_
 
 ## Log
 
+### 2026-11-14 (REMind: serif UI, notes, stacks)
+- **Renamed the app REMind** (tab title; wordmark "ReM:ind" in the menu bar, "ReM:" italic). Whole UI now uses Instrument Serif (`@fontsource/instrument-serif`, bundled, OFL) with small sizes bumped, no fake bold; menu bar is 52px tall with 22px type.
+- **Notes:** double-click to edit works again (the canvas pointer capture hid the card from `dblclick`; now looks up the card under the cursor). Big uppercase serif text sized by card width; always tall 3:4 cards in five muted greys (`NOTE_GREYS`, `noteHeight`); old notes are normalised once on load; bento notes are 1x2. Notes inside a `.bo` are not normalised on open.
+- **Right-click submenus (Arrange/Align):** fixed clipping (my scroll rule), the 31px offset from the Concrete theme, going off the bottom, and closing on diagonal moves (hover delay in `ContextMenu`).
+- **Library stacks** redesigned as a tidy deck (front card, others peek up-right, name + count under a hairline); the open stack is highlighted and the rest dimmed.
+- Tests 55 pass, typecheck clean. Checked in Playwright screenshots (Concrete, some Mocha/Latte); Concrete Dark and Latte not checked for the stacks and menu bar.
+
 ### 2026-11-14 (themes, space tags, menus, bulk export)
 - **Concrete / Concrete Dark themes** (flat sage-grey and blue-slate, square boxes, hairline edges, black/light hover; title bars on Inspector and dialogs, mono group labels, crop marks on the empty board; after typesafe.ai). Concrete is the default; the sidebar button cycles Concrete → Concrete Dark → Latte → Mocha.
 - **Finer type tags** for architecture and interior photos (facade, atrium, high ceiling, bedroom, reception, corridor, …; `SPACE_LABELS` in `categorize/style/labels.ts`): one softmax per parent group in the worker, `pickSpaces`, `Asset.spacesVersion` so existing images are re-analysed once (bump `SPACES_VERSION` when labels change). **Accuracy not measured on real photos yet**; thresholds (0.3, max 2) are guesses. Softmax inside a group, not sigmoid; revisit if labels hide each other.
