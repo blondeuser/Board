@@ -8,6 +8,9 @@ import { analyseImage, embedText, setModelProgressListener } from '../categorize
 import { queryToPrompt, semanticMatches } from '../categorize/style/search'
 import { EMBEDDING_MODEL } from '../categorize/style/model'
 import { typeName } from '../categorize/style/labels'
+import { APP_VERSION, buildBo, type BoAsset } from '../storage/bo/write'
+import { BoError, parseBo, planImport } from '../storage/bo/read'
+import { extOf, mimeOf, sha256Hex } from '../storage/bo/hash'
 
 export interface Filter {
   colors: string[]
@@ -308,6 +311,87 @@ export function useBoardApp() {
     [updateAssets],
   )
 
+  // ---- .bo files (docs/BO_FORMAT.md) ----
+  /** Save the open board as a `.bo` download: layout, notes, tags and the original image files. */
+  const exportBoard = useCallback(async () => {
+    const { boards: bs, placements: ps, assets: all, categories: cats, activeId: id } = latest.current
+    const b = bs.find((x) => x.id === id)
+    if (!b) return
+    try {
+      const onBoard = ps.filter((p) => p.boardId === id)
+      const images = new Map<string, Uint8Array>()
+      const assets: BoAsset[] = []
+      for (const assetId of new Set(onBoard.map((p) => p.assetId).filter(Boolean))) {
+        const a = all[assetId]
+        const blob = await db.blob(assetId)
+        if (!a || !blob) throw new Error('missing image')
+        const bytes = new Uint8Array(await blob.arrayBuffer())
+        const hash = a.hash ?? (await sha256Hex(bytes))
+        if (!a.hash) updateAssets([assetId], (x) => ({ ...x, hash }))
+        images.set(hash, bytes)
+        const { embedding: _e, embeddingModel: _m, ...rest } = a
+        assets.push({ ...rest, hash, ext: extOf(blob.type) })
+      }
+      const used = new Set(assets.flatMap((a) => a.categoryIds))
+      const bytes = buildBo({ board: b, placements: onBoard, assets, categories: cats.filter((c) => used.has(c.id)), images }, APP_VERSION)
+      const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: 'application/octet-stream' }))
+      const link = Object.assign(document.createElement('a'), { href: url, download: `${b.name.replace(/[\\/:*?"<>|]+/g, '-').trim() || 'board'}.bo` })
+      link.click()
+      setTimeout(() => URL.revokeObjectURL(url), 10_000)
+      notify(`Saved "${b.name}" (${assets.length} image${assets.length === 1 ? '' : 's'})`)
+    } catch {
+      notify('Could not save the board: an image file is missing from the library.')
+    }
+  }, [notify, updateAssets])
+
+  /** Open a `.bo` as a new board. Images already in the library (same hash) are reused, never duplicated. */
+  const importBo = useCallback(async (file: File) => {
+    try {
+      const content = parseBo(new Uint8Array(await file.arrayBuffer()))
+      // Hash of every library image, filling in the missing ones (older images) as we go.
+      const hashes = new Map<string, string>()
+      const backfill: Record<string, string> = {}
+      for (const a of Object.values(latest.current.assets)) {
+        let h = a.hash
+        if (!h) {
+          const blob = await db.blob(a.id)
+          if (!blob) continue
+          h = backfill[a.id] = await sha256Hex(new Uint8Array(await blob.arrayBuffer()))
+        }
+        hashes.set(h, a.id)
+      }
+      const plan = planImport(content, { hashes, categories: latest.current.categories }, newId)
+      // Decode everything first so a bad image fails the import before anything is written.
+      const ready = await Promise.all(
+        plan.addAssets.map(async ({ asset, ext }) => {
+          const blob = new Blob([content.images.get(asset.hash!)! as BlobPart], { type: mimeOf(ext) })
+          return { asset, blob, thumb: await makeThumbnail(blob) }
+        }),
+      )
+      await Promise.all(ready.map(({ asset, blob, thumb }) => db.addAsset(asset, blob, thumb)))
+      if (plan.addCategories.length) await db.saveCategories(plan.addCategories)
+      await db.saveBoards([plan.board])
+      await db.savePlacements(plan.placements)
+      const cur = latest.current.assets
+      const merged = Object.fromEntries(plan.mergeCategories.flatMap(({ assetId, categoryIds }) => (cur[assetId] ? [[assetId, categoryIds]] : [])))
+      updateAssets([...Object.keys(merged), ...Object.keys(backfill)], (a) => ({
+        ...a,
+        hash: a.hash ?? backfill[a.id],
+        categoryIds: [...new Set([...a.categoryIds, ...(merged[a.id] ?? [])])],
+      }))
+      setCategories((l) => [...l, ...plan.addCategories])
+      setAssets((a) => ({ ...a, ...Object.fromEntries(ready.map(({ asset }) => [asset.id, asset])) }))
+      latest.current.assets = { ...latest.current.assets, ...Object.fromEntries(ready.map(({ asset }) => [asset.id, asset])) }
+      setUrls((u) => ({ ...u, ...Object.fromEntries(ready.map(({ asset, thumb }) => [asset.id, URL.createObjectURL(thumb)])) }))
+      setPlacements((p) => [...p, ...plan.placements])
+      setBoards((l) => [...l, plan.board])
+      selectBoard(plan.board.id)
+      notify(`Opened "${plan.board.name}" (${plan.addAssets.length} new image${plan.addAssets.length === 1 ? '' : 's'})`)
+    } catch (e) {
+      notify(e instanceof BoError ? e.message : 'Could not open that file.')
+    }
+  }, [notify, updateAssets, selectBoard])
+
   // ---- auto type detection (on-device CLIP, runs in a worker) ----
   const autoTag = useCallback(
     (assetIds: string[]) => {
@@ -451,6 +535,7 @@ export function useBoardApp() {
     ready, boards, board, activeId, assets, urls, categories, selection, filter, message,
     boardPlacements,
     setSelection, selectBoard, addBoard, renameBoard, removeBoard, setView,
+    exportBoard, importBo,
     importBlobs, patchPlacements, commitPlacements, bringToFront, removeFromBoard,
     toggleTag, addCategory, removeCategory, toggleFilter, clearFilter, matches, notify,
   }

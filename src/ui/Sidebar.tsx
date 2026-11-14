@@ -1,14 +1,15 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { BoardApp } from '../app/useBoardApp'
 import { COLOR_FAMILIES } from '../categorize/color'
 import { TYPE_LABELS } from '../categorize/style/labels'
-import { CloseIcon, PlusIcon, GridIcon } from './icons'
+import { CloseIcon, PlusIcon, GridIcon, DownloadIcon, UploadIcon } from './icons'
 import { ThemeToggle } from './ThemeToggle'
 
 export function Sidebar({ app }: { app: BoardApp }) {
   const { boards, activeId, categories, filter } = app
   const [editing, setEditing] = useState('')
   const [adding, setAdding] = useState(false)
+  const boFile = useRef<HTMLInputElement>(null)
   const hasFilter = filter.colors.length + filter.categories.length + filter.types.length > 0
   const used = new Set(Object.values(app.assets).flatMap((a) => a.types ?? []))
   const typesInUse = TYPE_LABELS.filter((t) => used.has(t.id))
@@ -28,7 +29,22 @@ export function Sidebar({ app }: { app: BoardApp }) {
       <section>
         <header>
           <h2>Boards</h2>
-          <button className="icon" title="New board" onClick={app.addBoard}><PlusIcon /></button>
+          <span className="row">
+            <button className="icon" title="Open a .bo file" onClick={() => boFile.current?.click()}><UploadIcon /></button>
+            <button className="icon" title="Save this board as a .bo file" disabled={app.screen !== 'board'} onClick={() => void app.exportBoard()}><DownloadIcon /></button>
+            <button className="icon" title="New board" onClick={app.addBoard}><PlusIcon /></button>
+          </span>
+          <input
+            ref={boFile}
+            type="file"
+            accept=".bo"
+            hidden
+            onChange={(e) => {
+              const f = e.target.files?.[0]
+              e.target.value = ''
+              if (f) void app.importBo(f)
+            }}
+          />
         </header>
         <ul className="list">
           {boards.map((b) => (

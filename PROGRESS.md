@@ -2,7 +2,7 @@
 
 Living status. **Update at the end of every work session.** Rules live in `CLAUDE.md`, business logic in `MEMORY.md`.
 
-_Last updated: 2026-11-14 (docs merge)_
+_Last updated: 2026-11-14 (.bo export/import)_
 
 ## Status
 
@@ -52,10 +52,10 @@ _Last updated: 2026-11-14 (docs merge)_
 
 ### 3. Storage
 - [x] IndexedDB (browser build)
-- [ ] `Asset.hash` (SHA-256 of the original, computed on import + backfilled) — needed for `.bo` dedupe and for skipping duplicate imports
+- [x] `Asset.hash` (SHA-256 of the original): computed on import, backfilled on `.bo` export/import. Still to do: skip duplicate imports of the same file
 - [ ] SQLite + files on disk via Tauri (`docs/SQLITE_SCHEMA.md`); thumbnails; one-time IndexedDB → SQLite migration
-- [ ] `.bo` export: one board → `.bo` (write to `.tmp`, then rename) — `docs/BO_FORMAT.md`
-- [ ] `.bo` import: dedupe by hash into the library, create the board; ignore `embeddings.bin` if the model differs
+- [x] `.bo` export: sidebar download button saves the open board as `<name>.bo` (browser download; no `.tmp` rename needed). Without thumbs/embeddings/preview for now — `docs/BO_FORMAT.md`
+- [x] `.bo` import: sidebar upload button; dedupes by hash into the library, matches categories by name, always creates a new board. Embeddings are re-computed by the normal backfill
 - [ ] `.bo` file association + icon on Windows and macOS (Tauri bundle config)
 - [ ] Full-library backup/restore (later; same container idea)
 
@@ -103,6 +103,9 @@ _Last updated: 2026-11-14 (docs merge)_
 | 2026-11-14 | Lighting eval before building lighting UI | Riskiest feature: zero-shot may not separate grazing/washing, scallop/accent |
 
 ## Log
+
+### 2026-11-14 (.bo export/import)
+- Save a board as `.bo` (ZIP with all original image files) and open one again: `src/storage/bo/{write,read,hash}.ts`, buttons in the sidebar Boards header, `exportBoard`/`importBo` in `useBoardApp`. Added dependency `fflate` (named in the spec). `Asset.hash` added. 5 new tests (27 total). Typecheck + tests pass; **not tried in a browser yet**. Not committed.
 
 ### 2026-11-14 (docs merge with Claude planning session)
 - Merged a separate planning session into the docs: decisions (Tauri, no cloud, `.bo` format, sigmoid for lighting), extended lighting label candidates, mymind market notes, warm/cool caveat, Vietnamese-search note. New `docs/BO_FORMAT.md`, `docs/LIGHTING_TAXONOMY.md`, `docs/SQLITE_SCHEMA.md`. Fixed stale lines (CLIP → SigLIP, duplicate Search rule, repo status). Resume-here reordered: lighting eval → canvas check → split hook + Tauri → `.bo`. No code changed.

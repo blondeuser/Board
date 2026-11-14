@@ -33,6 +33,8 @@ export interface Asset {
   embedding?: Float32Array
   /** Which model made `embedding` (see categorize/style/model). Embeddings from another model are recomputed. */
   embeddingModel?: string
+  /** SHA-256 (hex) of the original file; identifies the image across libraries (.bo dedupe). Missing on older images, filled when needed. */
+  hash?: string
   createdAt: number
 }
 

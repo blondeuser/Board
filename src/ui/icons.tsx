@@ -17,3 +17,5 @@ export const SearchIcon = () => <Svg><circle cx="7" cy="7" r="4.2" /><path d="M1
 export const SunIcon = () => <Svg><circle cx="8" cy="8" r="2.8" /><path d="M8 1.8v1.4M8 12.8v1.4M1.8 8h1.4M12.8 8h1.4M3.6 3.6l1 1M11.4 11.4l1 1M12.4 3.6l-1 1M4.6 11.4l-1 1" /></Svg>
 export const MoonIcon = () => <Svg><path d="M13 9.4A5.5 5.5 0 016.6 3a5.5 5.5 0 106.4 6.4z" /></Svg>
 export const TrashIcon = () => <Svg><path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5" /></Svg>
+export const DownloadIcon = () => <Svg><path d="M8 2.5v8M4.8 7.6L8 10.8l3.2-3.2M3 13.5h10" /></Svg>
+export const UploadIcon = () => <Svg><path d="M8 10.8v-8M4.8 5.7L8 2.5l3.2 3.2M3 13.5h10" /></Svg>

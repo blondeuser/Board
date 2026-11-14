@@ -1,6 +1,7 @@
 import type { Asset } from '../shared/types'
 import { newId } from '../shared/id'
 import { extractPalette, colorFamilies } from '../categorize/color'
+import { sha256Hex } from '../storage/bo/hash'
 
 export interface ImportedImage {
   asset: Asset
@@ -56,6 +57,7 @@ export async function importImage(blob: Blob): Promise<ImportedImage> {
         palette,
         colors: colorFamilies(palette),
         categoryIds: [],
+        hash: await sha256Hex(new Uint8Array(await blob.arrayBuffer())),
         createdAt: Date.now(),
       },
     }
