@@ -2,7 +2,7 @@ import type { Asset, Category } from '../shared/types'
 import { COLOR_FAMILIES } from '../categorize/color'
 import { TYPE_LABELS } from '../categorize/style/labels'
 
-export type GroupBy = 'none' | 'category' | 'type' | 'color'
+export type GroupBy = 'none' | 'category' | 'type' | 'color' | 'source'
 
 export interface Group {
   key: string
@@ -16,8 +16,11 @@ export interface Group {
 export function groupAssets(assets: Asset[], by: GroupBy, categories: Category[]): Group[] {
   if (by === 'none') return [{ key: 'all', name: 'All', items: assets }]
 
+  const sourceCats = by === 'source' ? [...new Set(assets.flatMap((a) => a.source?.categories ?? []))].sort((x, y) => x.localeCompare(y)) : []
   const defs: { key: string; name: string; color?: string; has: (a: Asset) => boolean }[] =
-    by === 'category'
+    by === 'source'
+      ? sourceCats.map((c) => ({ key: `src:${c}`, name: c, has: (a) => !!a.source?.categories?.includes(c) }))
+      : by === 'category'
       ? categories.map((c) => ({ key: c.id, name: c.name, color: c.color, has: (a) => a.categoryIds.includes(c.id) }))
       : by === 'type'
         ? TYPE_LABELS.map((t) => ({ key: t.id, name: t.name, has: (a) => !!a.types?.includes(t.id) }))
@@ -30,7 +33,7 @@ export function groupAssets(assets: Asset[], by: GroupBy, categories: Category[]
   const placed = new Set(groups.flatMap((g) => g.items.map((a) => a.id)))
   const rest = assets.filter((a) => !placed.has(a.id))
   if (rest.length) {
-    const name = by === 'category' ? 'Uncategorized' : by === 'type' ? 'No type' : 'No colour'
+    const name = by === 'category' ? 'Uncategorized' : by === 'type' ? 'No type' : by === 'source' ? 'Not imported' : 'No colour'
     groups.push({ key: 'rest', name, items: rest })
   }
   return groups

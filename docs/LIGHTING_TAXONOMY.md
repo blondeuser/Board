@@ -41,6 +41,7 @@ Expected difficulty (before measuring): decorative, facade, daylight, coloured �
 
 - Data: `data/lighting-eval/<label>/` — 30-50 photos per label from my references; an image may sit in several folders (multi-label).
   Large image sets stay out of git (add to `.gitignore`); keep a `labels.csv` (file, labels) in the repo.
+- Quick source of candidates: File > Import from LIT Awards (built 2026-11-14). Award categories hint at the scene (e.g. Exterior Architectural Illumination → facade; Daylighting → daylight; Cove Lighting, Linear Lighting Systems → cove / linear) but are **not** technique labels: every eval photo is still labelled by hand. LIT entry texts often name the technique ("grazing effects", "wallwashers", "uplight"); keeping that text is on the roadmap as a weak-label source, never as ground truth.
 - `scripts/eval-lighting.mjs`: per label precision / recall / F1 at the tuned threshold, plus the top confused pairs.
 - Stages: (1) zero-shot → (2) logistic-regression probe on stored SigLIP embeddings (+ features), 5-fold cross-validation.
 - Ship rule: a label is shown to users only with precision ≥ ~0.8 on the eval set; weaker labels are merged or kept hidden.

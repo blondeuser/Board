@@ -1,7 +1,7 @@
 # Planned SQLite schema (Tauri step)
 
 Replaces IndexedDB (`src/storage/db.ts`) when Board moves into Tauri. Mirrors `src/shared/types.ts`; adds what the roadmap needs
-(content hash, lighting labels, migrations). Originals and thumbnails are **files** in the app-data folder, not blobs in the DB:
+(content hash, lighting labels, import sources, migrations). Originals and thumbnails are **files** in the app-data folder, not blobs in the DB:
 
 ```
 <appData>/library/originals/<hash>.<ext>
@@ -59,6 +59,21 @@ CREATE TABLE placements (
 );
 CREATE INDEX placements_board ON placements(board_id);
 
+CREATE TABLE asset_sources (                                     -- Asset.source: where an imported image came from
+  asset_id TEXT PRIMARY KEY REFERENCES assets(id) ON DELETE CASCADE,
+  site TEXT NOT NULL,                                            -- 'LIT Awards'
+  url TEXT NOT NULL,                                             -- project page
+  image_url TEXT,                                                -- the photo's own URL (skip re-imports)
+  title TEXT, credit TEXT,
+  details TEXT                                                   -- JSON object, display order kept
+);
+CREATE INDEX asset_sources_image_url ON asset_sources(image_url);
+CREATE TABLE asset_source_categories (                           -- award categories (Library "Award" tab)
+  asset_id TEXT REFERENCES assets(id) ON DELETE CASCADE,
+  category TEXT NOT NULL,
+  PRIMARY KEY (asset_id, category)
+);
+
 CREATE TABLE lighting_labels (
   asset_id TEXT REFERENCES assets(id) ON DELETE CASCADE,
   label TEXT NOT NULL,                                           -- id from docs/LIGHTING_TAXONOMY.md
@@ -73,5 +88,6 @@ CREATE TABLE lighting_labels (
 ## Notes
 - Search stays brute-force cosine in JS over embeddings loaded at start (fine to ~20k images). If it gets slow, try `sqlite-vec`
   (check it loads through the Tauri SQL plugin first).
-- One-time import from IndexedDB on first Tauri launch: read every store, compute `hash` for each original, write files + rows, mark done in `meta`.
+- One-time import from IndexedDB on first Tauri launch: read every store, compute `hash` for each original, write files + rows (including `source` → `asset_sources` + `asset_source_categories`), mark done in `meta`.
+- Source text is searched like tags; if search over it gets slow, add an FTS5 table over title, categories and details.
 - Delete rules match today's behaviour: deleting a board deletes its placements only; deleting an asset (Library) removes its placements everywhere.

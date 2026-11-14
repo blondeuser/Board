@@ -14,11 +14,14 @@ interface Item {
 }
 
 /** A macOS-style menu bar: click a title to open it, hover to move between open menus, Esc or a click elsewhere closes. */
-export function MenuBar({ app, sidebarOpen, onToggleSidebar }: { app: BoardApp; sidebarOpen: boolean; onToggleSidebar: () => void }) {
+export function MenuBar({ app, sidebarOpen, onToggleSidebar, onLitImport }: { app: BoardApp; sidebarOpen: boolean; onToggleSidebar: () => void; onLitImport: () => void }) {
   const [open, setOpen] = useState<string | null>(null)
   const bar = useRef<HTMLElement>(null)
   const fileInput = useRef<HTMLInputElement>(null)
   const onBoard = app.screen === 'board'
+  const picked = onBoard
+    ? [...new Set(app.boardPlacements.filter((p) => app.selection.includes(p.id) && p.assetId).map((p) => p.assetId))]
+    : app.librarySelection
 
   const menus: { title: string; items: (Item | 'sep')[] }[] = [
     {
@@ -27,8 +30,12 @@ export function MenuBar({ app, sidebarOpen, onToggleSidebar }: { app: BoardApp; 
         { label: 'New Board', run: app.addBoard },
         { label: 'Open…', run: () => fileInput.current?.click() },
         'sep',
+        { label: 'Import from LIT Awards…', run: onLitImport },
+        'sep',
         { label: 'Save', keys: `${mod}S`, disabled: !onBoard, run: () => void app.saveBoard() },
         { label: 'Save As…', keys: `${shift}${mod}S`, disabled: !onBoard, run: () => void app.saveBoardAs() },
+        'sep',
+        { label: 'Export Selected as JPEG…', disabled: !picked.length, run: () => void app.exportJpeg(picked) },
       ],
     },
     {

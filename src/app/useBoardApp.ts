@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { NOTE_TINTS, type Asset, type Board, type Category, type Placement, type ViewState } from '../shared/types'
+import { NOTE_TINTS, type Asset, type AssetSource, type Board, type Category, type Placement, type ViewState } from '../shared/types'
 import { newId } from '../shared/id'
 import { db } from '../storage/db'
 import { importImage, makeThumbnail } from '../items/importImage'
@@ -7,6 +7,7 @@ import { gridLayout } from '../canvas/viewport'
 import { analyseImage, embedText, setModelProgressListener } from '../categorize/style/classifier'
 import { queryToPrompt, semanticMatches } from '../categorize/style/search'
 import { EMBEDDING_MODEL } from '../categorize/style/model'
+import { zipSync, type Zippable } from 'fflate'
 import { typeName } from '../categorize/style/labels'
 import { APP_VERSION, buildBo, type BoAsset } from '../storage/bo/write'
 import { BoError, parseBo, planImport } from '../storage/bo/read'
@@ -22,6 +23,12 @@ const CATEGORY_COLORS = ['#f38ba8', '#fab387', '#f9e2af', '#a6e3a1', '#94e2d5', 
 const STOP_WORDS = new Set(['the', 'a', 'an', 'of', 'in', 'on', 'with', 'and', 'my', 'some', 'show', 'me', 'find', 'photo', 'photos', 'picture', 'pictures', 'image', 'images'])
 const DEFAULT_VIEW: ViewState = { x: 0, y: 0, zoom: 1 }
 const toggle = (list: string[], v: string) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v])
+
+function download(blob: Blob, name: string) {
+  const url = URL.createObjectURL(blob)
+  Object.assign(document.createElement('a'), { href: url, download: name }).click()
+  setTimeout(() => URL.revokeObjectURL(url), 10_000)
+}
 
 export function useBoardApp() {
   const [ready, setReady] = useState(false)
@@ -113,13 +120,18 @@ export function useBoardApp() {
     localStorage.setItem('board.active', id)
   }, [])
 
-  const addBoard = useCallback(() => {
-    const n = latest.current.boards.length + 1
-    const b: Board = { id: newId(), name: `Board ${n}`, createdAt: Date.now(), view: DEFAULT_VIEW }
+  /** Make an empty board and return its id (does not open it). */
+  const createBoard = useCallback((name: string) => {
+    const b: Board = { id: newId(), name, createdAt: Date.now(), view: DEFAULT_VIEW }
+    latest.current.boards = [...latest.current.boards, b] // callers may add images before the next render
     setBoards((list) => [...list, b])
     void db.saveBoards([b])
-    selectBoard(b.id)
-  }, [selectBoard])
+    return b.id
+  }, [])
+
+  const addBoard = useCallback(() => {
+    selectBoard(createBoard(`Board ${latest.current.boards.length + 1}`))
+  }, [selectBoard, createBoard])
 
   const renameBoard = useCallback((id: string, name: string) => {
     const clean = name.trim()
@@ -194,14 +206,22 @@ export function useBoardApp() {
   }, [])
 
   // ---- placements ----
+  /**
+   * Add images to the library and, when `center` is given, to the open board around that point.
+   * `opts.sources[i]` is stored on the image made from `blobs[i]`; `opts.quiet` (bulk imports) skips the
+   * toast and leaves the selection alone. Returns the new asset ids.
+   */
   const importBlobs = useCallback(
-    async (blobs: Blob[], center: { x: number; y: number } | null) => {
-      // center = null: library-only import (no board involved)
+    async (blobs: Blob[], center: { x: number; y: number } | null, opts: { sources?: (AssetSource | undefined)[]; quiet?: boolean } = {}): Promise<string[]> => {
       const boardId = latest.current.activeId
       const done = await Promise.allSettled(blobs.map(importImage))
-      const ok = done.flatMap((r) => (r.status === 'fulfilled' ? [r.value] : []))
-      if (ok.length < blobs.length) notify(`${blobs.length - ok.length} file(s) could not be read as images`)
-      if (!ok.length) return
+      const ok = done.flatMap((r, i) => {
+        if (r.status !== 'fulfilled') return []
+        const source = opts.sources?.[i]
+        return [source ? { ...r.value, asset: { ...r.value.asset, source } } : r.value]
+      })
+      if (ok.length < blobs.length && !opts.quiet) notify(`${blobs.length - ok.length} file(s) could not be read as images`)
+      if (!ok.length) return []
       const sizes = ok.map(({ asset }) => {
         const s = Math.min(1, 320 / Math.max(asset.width, asset.height))
         return { w: Math.round(asset.width * s), h: Math.round(asset.height * s) }
@@ -215,11 +235,14 @@ export function useBoardApp() {
         : []
       await Promise.all(ok.map(({ asset, blob, thumb }) => db.addAsset(asset, blob, thumb)))
       if (created.length) await db.savePlacements(created)
-      setAssets((a) => ({ ...a, ...Object.fromEntries(ok.map(({ asset }) => [asset.id, asset])) }))
+      const added = Object.fromEntries(ok.map(({ asset }) => [asset.id, asset]))
+      latest.current.assets = { ...latest.current.assets, ...added } // addToBoard right after an import must see them
+      setAssets((a) => ({ ...a, ...added }))
       setUrls((u) => ({ ...u, ...Object.fromEntries(ok.map(({ asset, thumb }) => [asset.id, URL.createObjectURL(thumb)])) }))
       setPlacements((p) => [...p, ...created])
       if (created.length) setSelection(created.map((p) => p.id))
-      else setLibrarySelection(ok.map(({ asset }) => asset.id))
+      else if (!opts.quiet) setLibrarySelection(ok.map(({ asset }) => asset.id))
+      return ok.map(({ asset }) => asset.id)
     },
     [notify],
   )
@@ -358,9 +381,7 @@ export function useBoardApp() {
         notify(`Saved ${handle.name} (${count} image${count === 1 ? '' : 's'})`)
       } else {
         // No file-picker support (Firefox/Safari): download instead.
-        const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: 'application/octet-stream' }))
-        Object.assign(document.createElement('a'), { href: url, download: name }).click()
-        setTimeout(() => URL.revokeObjectURL(url), 10_000)
+        download(new Blob([bytes as BlobPart], { type: 'application/octet-stream' }), name)
         notify(`Saved ${name} to Downloads`)
       }
     } catch (e) {
@@ -370,6 +391,34 @@ export function useBoardApp() {
   }, [notify, packBoard])
   const saveBoard = useCallback(() => saveBoardFile(false), [saveBoardFile])
   const saveBoardAs = useCallback(() => saveBoardFile(true), [saveBoardFile])
+
+  /** Export the originals of the given images as JPEG: one file, or a zip when there are several. */
+  const exportJpeg = useCallback(async (assetIds: string[]) => {
+    const files: Zippable = {}
+    let single: Blob | null = null
+    let failed = 0
+    for (const id of new Set(assetIds)) {
+      try {
+        const bitmap = await createImageBitmap((await db.blob(id))!)
+        const canvas = Object.assign(document.createElement('canvas'), { width: bitmap.width, height: bitmap.height })
+        const ctx = canvas.getContext('2d')!
+        ctx.fillStyle = '#fff' // JPEG has no transparency: PNG/WebP cut-outs get a white background
+        ctx.fillRect(0, 0, canvas.width, canvas.height)
+        ctx.drawImage(bitmap, 0, 0)
+        bitmap.close()
+        const jpg = await new Promise<Blob | null>((r) => canvas.toBlob(r, 'image/jpeg', 0.92))
+        if (!jpg) throw new Error('encode failed')
+        single = jpg
+        files[`image-${Object.keys(files).length + 1}.jpg`] = [new Uint8Array(await jpg.arrayBuffer()), { level: 0 }]
+      } catch {
+        failed++
+      }
+    }
+    const done = Object.keys(files).length
+    if (done === 1 && single) download(single, 'image.jpg')
+    else if (done) download(new Blob([zipSync(files) as BlobPart], { type: 'application/zip' }), 'images.zip')
+    notify(done ? `Exported ${done} JPEG${done === 1 ? '' : 's'}${failed ? `, ${failed} failed` : ''}` : 'Could not export those images.')
+  }, [notify])
 
   /** Open a `.bo` as a new board. Images already in the library (same hash) are reused, never duplicated. */
   const importBo = useCallback(async (file: File) => {
@@ -483,7 +532,7 @@ export function useBoardApp() {
   }, [])
   const clearFilter = useCallback(() => setFilter({ colors: [], categories: [], types: [] }), [])
 
-  // Text search (library only): every word must appear in the image's type, category, colour or board names.
+  // Text search (library only): every word must appear in the image's type, category, colour, board names or source credits.
   const boardNamesByAsset = useMemo(() => {
     const names = new Map(boards.map((b) => [b.id, b.name]))
     const out = new Map<string, string[]>()
@@ -547,6 +596,7 @@ export function useBoardApp() {
         ...a.categoryIds.map((id) => categories.find((c) => c.id === id)?.name ?? ''),
         ...a.colors,
         ...(boardNamesByAsset.get(a.id) ?? []),
+        ...(a.source ? [a.source.site, a.source.title ?? '', ...(a.source.categories ?? []), ...Object.values(a.source.details ?? {})] : []),
       ].join(' ').toLowerCase().split(/[^\p{L}\p{N}]+/u)
       // A tag-name hit (a word starting with what you typed) or a meaning hit both count.
       return words.every((w) => hay.some((h) => h.startsWith(w))) || semantic.has(a.id)
@@ -561,8 +611,8 @@ export function useBoardApp() {
     tagging, modelProgress, editingId, setEditingId, addNote, editNote, setTint, setMode,
     ready, boards, board, activeId, assets, urls, categories, selection, filter, message,
     boardPlacements,
-    setSelection, selectBoard, addBoard, renameBoard, removeBoard, setView,
-    saveBoard, saveBoardAs, importBo,
+    setSelection, selectBoard, addBoard, createBoard, renameBoard, removeBoard, setView,
+    saveBoard, saveBoardAs, importBo, exportJpeg,
     importBlobs, patchPlacements, commitPlacements, bringToFront, removeFromBoard,
     toggleTag, addCategory, removeCategory, toggleFilter, clearFilter, matches, notify,
   }

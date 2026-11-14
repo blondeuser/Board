@@ -32,14 +32,14 @@ Read a `docs/` file only when the task touches it.
 
 ## Commands
 
-`npm run dev` (Vite, port 5173), `npm test`, `npm run typecheck`, `npm run build`. Browser smoke test: with dev server running, `node scripts/smoke.mjs` (Playwright-core + Edge; `SHOT=path` saves a screenshot). `npm run tauri dev` comes with the Tauri step.
+`npm run dev` (Vite, port 5173; also serves the `/__lit` proxy the LIT import needs), `npm test`, `npm run typecheck`, `npm run build`. Browser smoke test: with dev server running, `node scripts/smoke.mjs` (Playwright-core + Edge; `SHOT=path` saves a screenshot). `npm run tauri dev` comes with the Tauri step.
 
 ## Stack (proposed)
 
 - TypeScript, Vite, React.
 - Canvas: custom DOM + CSS transform (`src/canvas/`); tldraw/Konva only if the 500-image perf check fails (see PROGRESS decisions).
 - The image model (SigLIP, `src/categorize/style/model.ts`) runs in a Web Worker (`classify.worker.ts`) via `@huggingface/transformers`; it makes the type tags and the search embeddings. Model files (~210 MB) download from the Hugging Face hub on first use (images never leave the machine). After changing the model or search thresholds, run `node scripts/eval-search.mjs <photo folders>` (precision check on real photos) and `node scripts/smoke-search.mjs <folders>`; changing the model needs a new `EMBEDDING_MODEL` id so old embeddings are recomputed.
-- State: one hook, `src/app/useBoardApp.ts`; storage currently IndexedDB (`src/storage/db.ts`), the only file that touches it. React StrictMode runs effects twice: keep updaters pure and guard one-time init.
+- State: one hook, `src/app/useBoardApp.ts` (plus `useLitImport.ts` for the LIT import, which uses its public functions only); storage currently IndexedDB (`src/storage/db.ts`), the only file that touches it. React StrictMode runs effects twice: keep updaters pure and guard one-time init.
 - Desktop shell: Tauri 2 (small, same code on Windows + macOS); browser build stays runnable for fast iteration.
 - Storage: SQLite (via Tauri SQL plugin) for metadata; originals + thumbnails as files on disk.
 - Auto-categorize, all on-device: colour = k-means in OKLab; type/style/lighting/subject = SigLIP image embeddings via `transformers.js` / ONNX Runtime; search + grouping = vector similarity. Brute-force cosine over all embeddings in JS is fine up to ~20k images (768 floats each); add a vector index only if that gets slow.
@@ -59,6 +59,7 @@ src/
     color/      palette extraction, colour naming, colour-similarity search
     style/      embeddings, tag/style classification, clustering
   storage/      database, file store, import/export, migrations
+  sources/      reference sites to import from (lit/ = LIT Awards winners): pure HTML parsers + a small fetch client; no UI, no DB
   ui/           shared components: toolbar, panels, tooltips (icon-only tools)
   shared/       types, utils, constants (no imports from other src/ folders)
 tests/          unit + visual tests
@@ -66,11 +67,11 @@ scripts/        dev scripts (kept in repo, not %TEMP%)
 public/         static assets
 ```
 
-Rules: `shared/` imports nothing from the app; `categorize/` is pure (image in, tags/palette/embedding out) and never touches the UI or DB; `storage/` is the only code that touches disk/DB. `.bo` read/write lives in `storage/bo/` and nowhere else.
+Rules: `sources/` parsers are pure (HTML string in, data out, tested on saved pages in `tests/fixtures/`); their network calls go through one `get()` per source so the Tauri HTTP plugin can replace the dev-server proxy (`/__lit` in `vite.config.ts`, which forwards only the LIT hosts). `shared/` imports nothing from the app; `categorize/` is pure (image in, tags/palette/embedding out) and never touches the UI or DB; `storage/` is the only code that touches disk/DB. `.bo` read/write lives in `storage/bo/` and nowhere else.
 
 - `src/app/useBoardApp.ts` is one large hook; before the Tauri/SQLite step, split it by domain (boards + placements, assets + tags, search, analysis queue) so each piece can move to the new storage on its own.
 - Schema changes: every change to stored data gets a numbered migration (IndexedDB `VERSION` now, SQL migrations after Tauri). Never edit an old migration.
 
 ## Verification
 
-Typecheck + unit tests for categorize/storage logic; for canvas changes, run the app and check pan/zoom/drag/undo by hand (Playwright screenshots once the canvas exists).
+Typecheck + unit tests for categorize/storage/sources logic (source parsers are tested on saved pages in `tests/fixtures/<site>/`; when a site's markup changes, re-save the pages first, then fix the parser); for canvas changes, run the app and check pan/zoom/drag/undo by hand (Playwright screenshots once the canvas exists).

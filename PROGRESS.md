@@ -2,23 +2,23 @@
 
 Living status. **Update at the end of every work session.** Rules live in `CLAUDE.md`, business logic in `MEMORY.md`.
 
-_Last updated: 2026-11-14 (collapsible sidebar)_
+_Last updated: 2026-11-14 (LIT Awards import)_
 
 ## Status
 
 | | |
 |---|---|
-| **Current phase** | Browser build with Library, meaning-search and Catppuccin theme done; next: lighting-technique eval (sigmoid scoring), 500-image canvas check, then Tauri shell |
-| **App** | Runs with `npm run dev` (port 5173). Boards, infinite canvas, notes, bento mode, Library (tabs, stacks, semantic search), colour + type + custom-category tags, Mocha/Latte theme |
-| **Tests** | 22 Vitest tests (colour, viewport, bento layout, type picking, library grouping, search) + Playwright smoke scripts in `scripts/`, all passing at last run (not re-run after the 2026-11-14 docs merge) |
-| **Hosting** | GitHub `blondeuser/Board` (public). First commit `4326d4f` pushed 2026-11-14 with all draft work |
+| **Current phase** | Browser build with Library, meaning-search, `.bo` files, menu bar and LIT Awards import done; next: verify the LIT import on the Mac, then lighting-technique eval (sigmoid scoring, LIT photos as eval data), 500-image canvas check, Tauri shell |
+| **App** | Runs with `npm run dev` (port 5173). Boards, infinite canvas, notes, bento mode, Library (Category / Type / Colour / Award / All tabs, stacks, semantic search), colour + type + custom-category tags, `.bo` save/open, menu bar, collapsible sidebar, File > Import from LIT Awards (needs the dev server), Mocha/Latte theme |
+| **Tests** | 38 Vitest tests (colour, viewport, bento layout, type picking, library grouping, search, `.bo`, LIT parsers) + Playwright smoke scripts in `scripts/`. 27 passed at the last full run; the 11 LIT tests were checked only under plain Node, **run `npm test` + `npm run typecheck` on the Mac** |
+| **Hosting** | GitHub `blondeuser/Board` (public). Latest commit `51971cf` (menu bar + sidebar); LIT import not committed yet |
 
 ## Resume here (next session)
 
-1. **Lighting eval (riskiest part, do first).** Pick the final label list from `docs/LIGHTING_TAXONOMY.md` (~10-14). Collect 30-50 reference photos per label into `data/lighting-eval/<label>/` (not committed if large). Write `scripts/eval-lighting.mjs`: zero-shot with **sigmoid** scores (see CLAUDE.md "Zero-shot scoring"), per-label precision/recall + confusion pairs. Then a logistic-regression probe on the stored embeddings, same report. Decide: ship as-is / merge confusing labels / keep as research. Record result in `MEMORY.md`.
-2. **500-image canvas check** (`scripts/perf.mjs` with 500 real photos, pan/zoom/select). Keep custom canvas if smooth; else evaluate Konva (MIT). Not tldraw: needs a licence key in production.
-3. **Split `useBoardApp.ts`** by domain (see CLAUDE.md), then **Tauri shell**: `models/` + ONNX wasm in bundled resources (offline), SQLite per `docs/SQLITE_SCHEMA.md`, image URL paste via Tauri HTTP (fixes CORS). Test the model on macOS early.
-4. **`.bo` export/import** per `docs/BO_FORMAT.md` (needs `Asset.hash` first).
+1. **Verify + commit the LIT import.** On the Mac: `npm test`, `npm run typecheck`, then `npm run dev` → File > Import from LIT Awards…, one small category, 1-3 photos per project. Check: progress, Stop/Hide, photos land in the Library with Source in the inspector, Award tab, search by company/location, re-run skips existing photos, new board option, `.bo` save keeps `source`. Then commit.
+2. **Lighting eval (riskiest part).** Pick the final label list from `docs/LIGHTING_TAXONOMY.md` (~10-14). Collect 30-50 reference photos per label into `data/lighting-eval/<label>/` (not committed if large); LIT imports are a quick source (see the taxonomy doc). Write `scripts/eval-lighting.mjs`: zero-shot with **sigmoid** scores (see CLAUDE.md "Zero-shot scoring"), per-label precision/recall + confusion pairs. Then a logistic-regression probe on the stored embeddings, same report. Decide: ship as-is / merge confusing labels / keep as research. Record result in `MEMORY.md`.
+3. **500-image canvas check** (`scripts/perf.mjs` with 500 real photos, pan/zoom/select). Keep custom canvas if smooth; else evaluate Konva (MIT). Not tldraw: needs a licence key in production.
+4. **Split `useBoardApp.ts`** by domain (see CLAUDE.md; `useLitImport.ts` already lives apart), then **Tauri shell**: `models/` + ONNX wasm in bundled resources (offline), SQLite per `docs/SQLITE_SCHEMA.md`, image URL paste and the LIT client via Tauri HTTP (fixes CORS, drops the dev proxy). Test the model on macOS early.
 
 ## Roadmap
 
@@ -74,6 +74,15 @@ _Last updated: 2026-11-14 (collapsible sidebar)_
 
 ### 5. Desktop shell
 - [ ] Tauri wrapper, builds on Windows + macOS
+- [ ] LIT client through the Tauri HTTP plugin (replace `get()` in `src/sources/lit/client.ts`), so the import works without `npm run dev`
+
+### 6. Reference sources
+- [x] LIT Awards winners import (2026-11-14): edition + award-category picker (remembered), photos per project 1/3/6/All, optional new board, progress with Hide/Stop, skips photos already imported (by image URL); credits stored as `Asset.source`; searchable; Library "Award" tab; Source block in the inspector
+- [ ] Verify on the Mac (see Resume here) and commit
+- [ ] Unit test for `groupAssets(…, 'source')` and a UI smoke script (`scripts/smoke-lit.mjs`, with the proxy stubbed)
+- [ ] Honourable mentions and student winners (`/winners/hmention.php`, `/winners/student.php`; same card markup, not parsed yet)
+- [ ] Keep the entry description (it often names techniques: grazing, wall washer, uplight) for search and as weak lighting labels
+- [ ] Other reference sites behind the same `sources/<site>/` shape (parse + client + source), e.g. IALD, Darc awards, archdaily lighting tag
 
 ## Backlog and known issues
 
@@ -83,6 +92,10 @@ _Last updated: 2026-11-14 (collapsible sidebar)_
 - Search thresholds (`SEARCH_FLOOR` 0.025, `SEARCH_WINDOW` 0.03) were tuned on 15 photos; re-tune with a bigger library.
 - Model (~210 MB) and ONNX wasm load from huggingface.co / cdn.jsdelivr.net on first use: first run needs internet. Fixed by bundling in the Tauri step.
 - Pasting/dropping an image URL only works if the host allows CORS; otherwise a message asks you to save the file and drop it.
+- LIT import works only under `npm run dev` / `vite preview` (the `/__lit` proxy); a static build shows "needs the dev server". Fixed by the Tauri HTTP step.
+- LIT parsers read the site's HTML with regexes: a redesign of litawards.com breaks them. Symptom: "No winners found" or projects with 0 photos. Fix: save fresh pages into `tests/fixtures/lit/`, adjust `parse.ts` until `tests/lit.test.ts` passes.
+- LIT volume: a whole year is ~3,700 photos (~1-1.5 GB) in IndexedDB at "All"; browser storage quota may refuse it. Keep imports to a few categories until the files-on-disk storage of the Tauri step.
+- LIT duplicates are detected by image URL only; the same photo re-uploaded under another URL (or also dropped in by hand) is kept twice. Could also check `Asset.hash` after download.
 - Canvas shows a 1280px thumbnail (originals kept); zooming far in on a big photo looks soft. Idea: swap in the original above ~200% zoom.
 - Reported lag when selecting ~12 photos: could not reproduce headless (150 fps, ~3ms/frame main-thread; `scripts/perf.mjs`). Thumbnails shipped as the likely fix (decoded size 48MB -> 5MB per 12MP photo). Needs confirming on the real machine; if it persists, ask for monitor/GPU + photo sizes and profile in Edge DevTools Performance.
 - Not yet checked on macOS / Safari; only Edge via Playwright.
@@ -101,8 +114,17 @@ _Last updated: 2026-11-14 (collapsible sidebar)_
 | 2026-11-14 | `.bo` = ZIP container, export/import of one board; library stays the master copy | Simple, crash-safe, inspectable; one module so it can change later |
 | 2026-11-14 | Lighting labels use sigmoid (independent) scoring | Effects combine in one image; softmax makes them compete |
 | 2026-11-14 | Lighting eval before building lighting UI | Riskiest feature: zero-shot may not separate grazing/washing, scallop/accent |
+| 2026-11-14 | LIT import parses the public winners pages (no API exists) through a dev-server proxy; no extra dependency (regex parsers, no jsdom/cheerio) | Site and photo bucket send no CORS headers; regex on server-rendered PHP is small, testable on saved pages and runs in Node, browser and Tauri |
+| 2026-11-14 | Imported images carry `Asset.source` (link, title, categories, credit, details) instead of auto-creating custom categories | 68 award categories per year would flood the sidebar; source data stays searchable and groupable (Award tab) and keeps photographer credits |
 
 ## Log
+
+### 2026-11-14 (JPEG export)
+- Select images (board or Library) and export the originals as JPEG: download button in the Inspector, or File > Export Selected as JPEG…. One image gives `image.jpg`, several give `images.zip` (`exportJpeg` in `useBoardApp`; quality 0.92, transparent areas become white). Checked in Chrome (zip of 2, single via menu, valid JPEG); typecheck passes. Not committed.
+
+### 2026-11-14 (LIT Awards import)
+- File > Import from LIT Awards…: pick edition + award categories + photos per project, downloads winners' photos into the library with credits (`Asset.source`), optional new board. `src/sources/lit/{parse,client,source}.ts`, `src/app/useLitImport.ts`, `src/ui/LitImportDialog.tsx`; dev-server proxy `/__lit` in `vite.config.ts` (site and photo bucket send no CORS headers). Search includes source credits; Library tab "Award" groups by award category; inspector shows Source. `importBlobs` gained `opts.sources/quiet` and returns ids; `createBoard(name)`.
+- Parsers checked against live pages: 2025 (334 projects, 68 categories, ~11 photos each), 2019 (102), 2017 (152, older photo URLs). New `tests/lit.test.ts` + fixtures in `tests/fixtures/lit/`. Parser assertions passed under plain Node; **`npm test`, `npm run typecheck` and a real import in the browser not run yet** (Mac-only binaries in node_modules). Not committed.
 
 ### 2026-11-14 (collapsible sidebar)
 - Left sidebar can be hidden: toggle button in the menu bar, View > Hide/Show Sidebar, Cmd/Ctrl+\\. Hidden = auto-hide: moving the mouse to the left edge slides it over the canvas, it hides ~250 ms after the mouse leaves. Choice remembered (`board.sidebar` in localStorage). Layout: `.app > .menubar + .shell`, sidebar in `.side`; `App.tsx` holds the state. Checked in Chrome (collapse, edge hover, hide, reload, shortcut); typecheck + 27 tests pass. Not committed.

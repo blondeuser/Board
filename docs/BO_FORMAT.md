@@ -38,7 +38,7 @@ The `Board` and its `Placement[]` exactly as in `src/shared/types.ts` (`id`, `na
 placements with `kind`, `assetId`, `text`, `tint`, `x`, `y`, `w`, `h`, `z`). `boardId` on placements is implied.
 
 ## assets.json
-`Asset[]` as in `src/shared/types.ts` minus `embedding`, plus:
+`Asset[]` as in `src/shared/types.ts` minus `embedding` (including the optional `source` credits of imported photos, added 2026-11-14; readers that don't know it ignore it), plus:
 - `hash` — SHA-256 of the original (hex). Also the image's file name in `images/`.
 - `ext` — original file extension.
 - `lighting` (once it exists) — `{ label, score?, source: "model" | "user", verdict?: "yes" | "no" }[]`.

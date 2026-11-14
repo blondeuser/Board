@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useBoardApp, type BoardApp } from './useBoardApp'
+import { useLitImport } from './useLitImport'
+import { LitImportDialog } from '../ui/LitImportDialog'
 import { Canvas } from '../canvas/Canvas'
 import { bentoLayout } from '../canvas/bento'
 import { boundsOf, clampZoom, fitRect, screenToWorld, zoomAt } from '../canvas/viewport'
@@ -18,6 +20,7 @@ function confirmDelete(app: BoardApp, assetIds: string[]) {
 
 export function App() {
   const app = useBoardApp()
+  const lit = useLitImport(app)
   const viewportRef = useRef<HTMLDivElement>(null)
   const pointer = useRef<{ x: number; y: number } | null>(null)
   const live = useRef(app)
@@ -81,7 +84,7 @@ export function App() {
         toggleSidebar()
         return
       }
-      if ((e.target as HTMLElement).matches?.('input, textarea')) return
+      if ((e.target as HTMLElement).matches?.('input, textarea') || (e.target as HTMLElement).closest?.('.modal')) return
       if (a.screen === 'library') {
         const sel = a.librarySelection
         if ((e.key === 'Delete' || e.key === 'Backspace') && sel.length) confirmDelete(a, sel)
@@ -146,7 +149,8 @@ export function App() {
 
   return (
     <div className="app">
-      <MenuBar app={app} sidebarOpen={sidebarOpen} onToggleSidebar={toggleSidebar} />
+      <MenuBar app={app} sidebarOpen={sidebarOpen} onToggleSidebar={toggleSidebar} onLitImport={lit.open} />
+      <LitImportDialog lit={lit} onShowLibrary={() => app.setScreen('library')} />
       <div className={'shell' + (sidebarOpen ? '' : ' collapsed')}>
       {!sidebarOpen && <div className="edge" onPointerEnter={showPeek} onPointerLeave={hidePeek} />}
       <div className={'side' + (!sidebarOpen && peek ? ' peek' : '')} onPointerEnter={showPeek} onPointerLeave={() => !sidebarOpen && hidePeek()}>
@@ -205,10 +209,13 @@ export function App() {
         </div>}
           </>
         )}
-        {(app.tagging > 0 || app.modelProgress !== null) && (
-          <div className="status">
-            {app.modelProgress !== null ? `Downloading image model ${Math.round(app.modelProgress)}%` : `Analysing images (${app.tagging})`}
-          </div>
+        {(app.tagging > 0 || app.modelProgress !== null || (lit.phase === 'running' && !lit.visible)) && (
+          <button className="status" onClick={lit.phase === 'running' ? lit.open : undefined}>
+            {[
+              lit.phase === 'running' && !lit.visible ? `Importing LIT ${lit.progress.done}/${lit.progress.total}` : '',
+              app.modelProgress !== null ? `Downloading image model ${Math.round(app.modelProgress)}%` : app.tagging > 0 ? `Analysing images (${app.tagging})` : '',
+            ].filter(Boolean).join(' · ')}
+          </button>
         )}
         {app.message && <div className="toast">{app.message}</div>}
       </main>

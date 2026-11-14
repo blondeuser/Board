@@ -3,7 +3,7 @@ import { COLOR_FAMILIES } from '../categorize/color'
 import { NOTE_TINTS, type Placement } from '../shared/types'
 import { TYPE_LABELS, typeName } from '../categorize/style/labels'
 import { readableOn } from '../shared/contrast'
-import { TrashIcon } from './icons'
+import { DownloadIcon, TrashIcon } from './icons'
 
 interface Props {
   app: BoardApp
@@ -27,6 +27,7 @@ export function Inspector({ app, assetIds, notes = [], count, onRemove, removeTi
   const typesOn = [...new Set(assets.flatMap((a) => a.types ?? []))]
   const detecting = assets.some((a) => a.types === undefined)
   const palette = assets.length === 1 ? assets[0].palette : []
+  const source = assets.length === 1 ? assets[0].source : undefined
   const boardNames = library
     ? app.boards.filter((b) => app.allPlacements.some((p) => p.boardId === b.id && assetIds.includes(p.assetId))).map((b) => b.name)
     : []
@@ -35,15 +36,36 @@ export function Inspector({ app, assetIds, notes = [], count, onRemove, removeTi
     <div className="inspector" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
       <header>
         <strong>{count === 1 ? (notes.length ? 'Note' : 'Image') : `${count} ${notes.length ? 'cards' : 'images'}`}</strong>
+        <span className="row">
+        <button className="icon" title="Export as JPEG" disabled={!assetIds.length} onClick={() => void app.exportJpeg(assetIds)}>
+          <DownloadIcon />
+        </button>
         <button className="icon" title={removeTitle} onClick={onRemove}>
           <TrashIcon />
         </button>
+        </span>
       </header>
 
       {palette.length > 0 && (
         <div className="palette" title="Extracted palette">
           {palette.map((c) => <i key={c.hex} style={{ background: c.hex, flexGrow: c.share }} title={c.hex} />)}
         </div>
+      )}
+
+      {source && (
+        <>
+          <h3>Source</h3>
+          <p className="source-title">
+            <a href={source.url} target="_blank" rel="noreferrer" title={`Open on ${source.site}`}>{source.title || source.site}</a>
+          </p>
+          {source.categories?.length ? <p className="muted source-cats">{source.categories.join(' · ')}</p> : null}
+          <dl className="source-details">
+            {Object.entries(source.details ?? {}).filter(([k]) => k !== 'Project website').map(([k, v]) => (
+              <div key={k}><dt>{k}</dt><dd>{v}</dd></div>
+            ))}
+            {source.credit && <div><dt>Photo</dt><dd>{source.credit}</dd></div>}
+          </dl>
+        </>
       )}
 
       {library && (

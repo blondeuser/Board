@@ -35,7 +35,27 @@ export interface Asset {
   embeddingModel?: string
   /** SHA-256 (hex) of the original file; identifies the image across libraries (.bo dedupe). Missing on older images, filled when needed. */
   hash?: string
+  /** Where the image was imported from (e.g. a LIT Awards winner page). Missing for pasted/dropped files. */
+  source?: AssetSource
   createdAt: number
+}
+
+/** Origin of an imported image, kept for credits, linking back and search. */
+export interface AssetSource {
+  /** Site name shown in the app, e.g. "LIT Awards". */
+  site: string
+  /** Page the image belongs to (opened by the inspector link). */
+  url: string
+  /** The image file's own URL; used to skip photos already in the library. */
+  imageUrl?: string
+  /** Project / page title. */
+  title?: string
+  /** The site's own categories (award categories for LIT); searchable and groupable in the Library. */
+  categories?: string[]
+  /** Photographer credit. */
+  credit?: string
+  /** Other labelled credits in display order (company, designers, location, edition, …); searchable. */
+  details?: Record<string, string>
 }
 
 export const NOTE_TINTS = ['#f9e2af', '#f5c2e7', '#a6e3a1', '#89dceb', '#cba6f7'] as const

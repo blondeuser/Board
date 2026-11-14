@@ -8,13 +8,14 @@ const TABS: [GroupBy, string][] = [
   ['category', 'Category'],
   ['type', 'Type'],
   ['color', 'Colour'],
+  ['source', 'Award'],
   ['none', 'All'],
 ]
 
 const loadGroupBy = (): GroupBy => {
   try {
     const v = localStorage.getItem('board.groupBy')
-    return v === 'none' || v === 'type' || v === 'color' ? v : 'category'
+    return v === 'none' || v === 'type' || v === 'color' || v === 'source' ? v : 'category'
   } catch {
     return 'category'
   }
@@ -90,7 +91,7 @@ export function Library({ app, onDropData }: { app: BoardApp; onDropData: (dt: D
         <div className="empty static">
           <p>{total ? 'No images match the filters' : 'Paste or drop images to add them to the library'}</p>
         </div>
-      ) : !searching && (groupBy === 'type' || groupBy === 'color') ? (
+      ) : !searching && (groupBy === 'type' || groupBy === 'color' || groupBy === 'source') ? (
         <>
           <div className="stacks" onClick={(e) => e.stopPropagation()}>
             {groups.map((g) => (
