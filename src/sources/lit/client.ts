@@ -24,7 +24,9 @@ async function get(url: string, signal?: AbortSignal): Promise<Response> {
       r = await fetchFrom(url, signal)
     } catch (e) {
       if (signal?.aborted) throw e
-      throw new LitError('Could not reach the LIT Awards site. Check your connection.')
+      // Keep the plugin's reason (scope error, TLS, DNS…): "check your connection" alone hid a broken capability once.
+      const why = e instanceof Error ? e.message : String(e)
+      throw new LitError(`Could not reach the LIT Awards site. Check your connection.${why ? ` (${why})` : ''}`)
     }
     if (!r.ok) throw new LitError(`LIT Awards answered ${r.status} for ${url}`)
     return r

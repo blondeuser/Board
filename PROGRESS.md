@@ -2,18 +2,22 @@
 
 Living status. **Update at the end of every work session.** Rules live in `CLAUDE.md`, business logic in `MEMORY.md`.
 
-_Last updated: 2026-11-15 (plan: Windows demo installer via Tauri)_
+_Last updated: 2026-11-15 (v0.1.1: version bump, release rules)_
 
 ## Status
 
 |                   |                                                                                                                                                                                                                                                                                                                                |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Current phase** | Browser build with Library, meaning-search, `.bo` files, menu bar and LIT Awards import done; **next: Windows demo installer (Tauri shell, chosen 2026-11-15)**, then verify the LIT import on the Mac, lighting-technique eval (sigmoid scoring, LIT photos as eval data), 500-image canvas check, Tauri shell                                                                             |
+| **Current phase** | Browser build done (canvas, Library, meaning-search, `.bo`, LIT import, two Concrete themes). **Windows demo installer builds** (Tauri 2, 2026-11-15) but is not yet tested on a PC; next: test it, then verify LIT on the Mac, lighting-technique eval, SQLite step |
 | **App**           | Runs with `npm run dev` (port 5173). Boards, infinite canvas, notes, bento mode, Library (Category / Type / Colour / Award / All tabs, stacks, semantic search), colour + type + custom-category tags, `.bo` save/open, menu bar, collapsible sidebar, File > Import from LIT Awards (needs the dev server), Mocha/Latte theme |
-| **Tests**         | 38 Vitest tests (colour, viewport, bento layout, type picking, library grouping, search, `.bo`, LIT parsers) + Playwright smoke scripts in `scripts/`. 27 passed at the last full run; the 11 LIT tests were checked only under plain Node, **run `npm test` + `npm run typecheck` on the Mac**                                |
-| **Hosting**       | GitHub `blondeuser/Board` (public). Latest commit `a97360e`                                                                                                                                                                                                                                                                    |
+| **Tests**         | 59 Vitest tests (colour, viewport, bento, type picking, grouping, search, `.bo`, LIT + link parsers, `isPublicHost`) pass; typecheck clean. Playwright smoke scripts in `scripts/` |
+| **Hosting**       | GitHub `blondeuser/Board` (public). Latest code commit `2c5a6ff` |
 
 ## Resume here (next session)
+
+**Next build is v0.1.1** (version already bumped in `package.json`, `tauri.conf.json`, `Cargo.toml`): it carries the LIT import fix. `npm run tauri build`, then run `src-tauri/target/release/bundle/nsis/REMind_0.1.1_x64-setup.exe` over the installed 0.1.0 (upgrade in place; library should survive: check). Then test LIT import and paste-a-link. Use the NSIS installer only from now on.
+
+**Installer built 2026-11-15** (`npx tauri build`, Rust 1.100 + VS 2022 Build Tools, ~2 min compile): `src-tauri/target/release/bundle/nsis/REMind_0.1.0_x64-setup.exe` (7.7 MB, per-user) and `msi/REMind_0.1.0_x64_en-US.msi` (8.9 MB); the built exe launches. **Not yet tested:** run it on a PC and check native Save dialog + fs write to the chosen path, LIT import, add-a-link (http scope), system-browser links, model download in WebView2, `confirm()`/`prompt()` in WebView2 (if dead, use dialog plugin `ask`/an in-app input), and the `http` capability URL patterns. `npx tauri dev` was not run. Icon is the "ReM:ind" wordmark on white (`scripts/make-icon.mjs` → `npx tauri icon src-tauri/icon-source.png`).
 
 0. **Windows demo installer (Tauri 2), chosen 2026-11-15.** Goal: an `.msi` / `-setup.exe` I can install on a Windows PC without Node for the first demo. Steps:
    1. Prerequisites on the Windows PC: Rust (rustup, MSVC toolchain) + Visual Studio C++ Build Tools ("Desktop development with C++"). WebView2 is already on Windows 11.
@@ -82,12 +86,14 @@ _Last updated: 2026-11-15 (plan: Windows demo installer via Tauri)_
 - [ ] Extra abilities (e.g. OCR for text in images) as separate lazy-loaded models, each in its own `models/<id>/` folder
 
 ### 5. Desktop shell
-- [ ] **Windows demo installer** (first demo; plan in "Resume here" step 0): Tauri 2 shell, unsigned `.msi` / NSIS `-setup.exe`
-- [ ] Tauri wrapper, builds on Windows + macOS
-- [ ] LIT client through the Tauri HTTP plugin (replace `get()` in `src/sources/lit/client.ts`), so the import works without `npm run dev`
-- [ ] "Add a link" through the Tauri HTTP plugin (replace the `/__link` proxy in `src/sources/link/client.ts`)
-- [ ] `.bo` save through a native Save dialog (Tauri dialog + fs plugins) instead of a browser download
-- [ ] App icon (REMind) for the installer and window
+- [ ] **Auto-update** (after the demo): Tauri updater plugin; signing key pair (`npx tauri signer generate`; private key + password kept outside the repo, backed up: losing it means installed copies can never update); public key in `tauri.conf.json`; `createUpdaterArtifacts`; releases on GitHub (`blondeuser/Board`) with the installer, its `.sig` and `latest.json`; app checks on start and asks "Update now?". Later: GitHub Action that builds + publishes on a version tag
+- [ ] Code signing certificate (removes the SmartScreen warning; paid; only when sharing widely)
+- [x] **Windows demo installer** built (2026-11-15): Tauri 2 shell, unsigned `.msi` / NSIS `-setup.exe`; still to test on a PC (see Resume here)
+- [x] Tauri wrapper builds on Windows; [ ] macOS
+- [x] LIT client through the Tauri HTTP plugin (replace `get()` in `src/sources/lit/client.ts`), so the import works without `npm run dev`
+- [x] "Add a link" through the Tauri HTTP plugin (public hosts only) (replace the `/__link` proxy in `src/sources/link/client.ts`)
+- [x] `.bo` save through a native Save dialog (Tauri dialog + fs plugins) instead of a browser download
+- [x] App icon (REMind wordmark on white; placeholder-quality, replace with a real logo later)
 - [ ] Code signing (later; the demo build is unsigned)
 
 ### 6. Reference sources
@@ -115,12 +121,15 @@ _Last updated: 2026-11-15 (plan: Windows demo installer via Tauri)_
 - Not yet checked on macOS / Safari; only Edge via Playwright.
 - Browser extension / mobile capture (later).
 - Desktop app storage: until the SQLite step, the Tauri app keeps using IndexedDB inside WebView2 (its own app-data folder). It starts with an **empty library**: boards made in the browser build (`localhost:5173`) don't carry over; move them with `.bo` export/import.
+- Mixed installers: an MSI install and an NSIS install of the same app can sit side by side as two apps. Ship NSIS only; if a PC has the 0.1.0 MSI, uninstall it first (keep app data).
+- The NSIS uninstaller has a "delete application data" checkbox: ticking it wipes the library.
 - Demo installer is unsigned: Windows SmartScreen warns on first run ("More info → Run anyway").
 
 ## Decisions
 
 | Date | Decision | Why |
 |---|---|---|
+| 2026-11-15 | Release rules: NSIS installer only, bump the version in `package.json` + `tauri.conf.json` + `Cargo.toml` for every build handed out, identifier never changes; manual updates until the Tauri updater + GitHub Releases | Upgrades in place keep the library; the MSI won't reinstall the same version; mixing MSI/NSIS gives two installs |
 | 2026-11-15 | First demo ships as a Windows installer built with Tauri 2 (unsigned `.msi` / `-setup.exe`), ahead of the SQLite step; storage stays IndexedDB for the demo | Demo PC needs no Node; Tauri was already the chosen shell. SQLite, offline model and file association follow as separate steps |
 | 2026-11-14 | Canvas is custom (DOM + CSS transform), not tldraw/Konva | Only needs images + pan/zoom/drag; no dependency, easy to swap later. Re-evaluate in the 500-image perf check |
 | 2026-11-14 | Browser build first with IndexedDB; Tauri/SQLite later | Fast iteration; storage code is isolated in `src/storage/` |
@@ -136,7 +145,20 @@ _Last updated: 2026-11-15 (plan: Windows demo installer via Tauri)_
 
 ## Log
 
-### 2026-11-15 (themes, desktop shell scaffold)
+### 2026-11-15 (v0.1.1: version bump, release rules)
+- Version 0.1.0 → 0.1.1 in `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` for the build carrying the LIT import fix. Release/upgrade rules written to `CLAUDE.md` ("Releases and updates"), decision in `MEMORY.md`, auto-update + code signing tasks in roadmap §5, upgrade pitfalls in known issues. Fixed a garbled `%USERPROFILE%\.cargo\bin` path in `CLAUDE.md`. Not built yet; not committed.
+
+### 2026-11-15 (fix: LIT import failed in the installed app)
+- Symptom: File > Import from LIT Awards in the installed app showed "Could not reach the LIT Awards site" at once. Cause: `src-tauri/capabilities/default.json` had `http://[::1]*` in the http deny list, which is not a valid URL pattern, so the plugin rejected every request. The other deny entries (`http://10.*`, `http://localhost*`) parsed but matched nothing (dotted IPs need a regex group; host patterns need `:*` for any port).
+- Fix: deny list rewritten with patterns checked against the plugin's own `urlpattern` 0.6 parsing (localhost, 127/8, 10/8, 172.16/12, 192.168/16, 169.254/16, 100.64/10, 0/8, any IPv6 literal); LIT pages, the S3 photo bucket and public sites stay allowed. `src/sources/lit/client.ts` now appends the plugin's reason to the error, so the next failure says why.
+- Typecheck clean, 56 tests pass. **Needs a rebuild (`npm run tauri build`) and a re-check in the installed app; not committed.**
+- Rule: after editing a capability scope, test the patterns; a single bad entry silently breaks the whole plugin.
+
+### 2026-11-15 (first installer build)
+- Installed Rust + VS Build Tools; `npx tauri build` succeeded first try: NSIS 7.7 MB + MSI 8.9 MB. Built exe starts (window title "REMind"). Icon redrawn as the "ReM:ind" wordmark on a white square; removed unused Android/iOS icon folders. Untested at runtime: dialog/fs scope, http capability patterns, WebView2 `confirm`/`prompt`.
+- Added the `opener` plugin (open links in the system browser), beyond the approved http/dialog/fs list.
+
+### 2026-11-15 (themes, desktop shell scaffold, `2c5a6ff`)
 - Themes cut to two: Concrete (default) and Concrete Dark; Latte/Mocha removed. Fixed invisible text in the board rename box. Progressive blur on the side panel's top/bottom edges. All-tab MM/YY date landmarks; colour picker moved to the bottom of the sidebar.
 - Tauri 2 shell scaffolded in `src-tauri/` (http, dialog, fs, opener plugins; opener added beyond the approved list), desktop code paths (`shared/desktop.ts`, `sources/net.ts`, `storage/saveFile.ts`, `shared/external.ts`), icon = "ReM:ind" wordmark on white (`scripts/make-icon.mjs`). Nothing Rust-side compiled yet: Rust + VS C++ Build Tools not installed. Next: install them, `npx tauri dev`, then `npx tauri build`.
 
