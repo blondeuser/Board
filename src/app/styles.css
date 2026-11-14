@@ -68,6 +68,13 @@ main { grid-column: 2; grid-row: 1; }
 .menu-list { position: absolute; top: 26px; left: 0; min-width: 230px; padding: 5px; background: var(--panel); border-radius: 9px; box-shadow: var(--shadow-md), 0 0 0 1px var(--line); display: flex; flex-direction: column; }
 .menu-list button { display: flex; justify-content: space-between; gap: 28px; align-items: center; text-align: left; background: none; border: 0; border-radius: 5px; padding: 4px 10px; font-size: 13px; }
 .menu-list button:hover:not(:disabled) { background: var(--accent); color: var(--on-accent); }
+.menu-list.ctx { position: fixed; z-index: 60; min-width: 210px; }
+.ctx-sub { position: relative; }
+.ctx-sub > button { width: 100%; }
+.ctx-sub:hover > button:not(:disabled) { background: var(--accent); color: var(--on-accent); }
+.ctx-list { display: none; top: -6px; left: calc(100% + 2px); }
+.ctx-sub.flip .ctx-list { left: auto; right: calc(100% + 2px); }
+.ctx-sub:hover > .ctx-list { display: flex; }
 .menu-list kbd { font: inherit; color: var(--muted); }
 .menu-list button:hover:not(:disabled) kbd { color: inherit; opacity: 0.8; }
 .menu-list hr { border: 0; height: 1px; background: var(--line); margin: 5px 6px; }

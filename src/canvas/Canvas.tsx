@@ -38,6 +38,8 @@ interface Props {
   onTransient: (patches: Record<string, Partial<Placement>>) => void
   onCommit: (ids: string[]) => void
   onDropData: (dt: DataTransfer, clientX: number, clientY: number) => void
+  /** Right click: screen position and the card under it, if any. */
+  onContextMenu: (clientX: number, clientY: number, id: string | null) => void
 }
 
 type Drag =
@@ -245,7 +247,10 @@ export function Canvas(props: Props) {
         const p = placements.find((x) => x.id === el?.dataset.pid)
         if (p?.kind === 'note') props.onStartEdit(p.id)
       }}
-      onContextMenu={(e) => e.preventDefault()}
+      onContextMenu={(e) => {
+        e.preventDefault()
+        props.onContextMenu(e.clientX, e.clientY, (e.target as HTMLElement).closest<HTMLElement>('[data-pid]')?.dataset.pid ?? null)
+      }}
     >
       <div className={'world' + (props.locked ? ' bento' : '')} style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.zoom})`, '--inv': inv } as CSSProperties}>
         {!props.locked && (

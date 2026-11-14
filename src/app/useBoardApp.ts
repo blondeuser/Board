@@ -4,6 +4,7 @@ import { newId } from '../shared/id'
 import { db } from '../storage/db'
 import { importImage, makeThumbnail } from '../items/importImage'
 import { gridLayout } from '../canvas/viewport'
+import { alignPatches, reorderZ, type AlignMode, type OrderMode } from '../canvas/arrange'
 import { analyseImage, embedText, setModelProgressListener } from '../categorize/style/classifier'
 import { queryToPrompt, semanticMatches } from '../categorize/style/search'
 import { EMBEDDING_MODEL } from '../categorize/style/model'
@@ -337,6 +338,62 @@ export function useBoardApp() {
     setTimeout(() => commitPlacements(ids), 0)
   }, [patchPlacements, commitPlacements])
 
+  /** Stacking: which cards sit above or below others (images vs. shapes alike). */
+  const arrange = useCallback((ids: string[], mode: OrderMode) => {
+    const { placements: ps, activeId: boardId } = latest.current
+    const patch = reorderZ(ps.filter((p) => p.boardId === boardId), new Set(ids), mode)
+    const changed = Object.keys(patch)
+    if (!changed.length) return
+    patchPlacements(Object.fromEntries(changed.map((id) => [id, { z: patch[id] }])))
+    setTimeout(() => commitPlacements(changed), 0)
+  }, [patchPlacements, commitPlacements])
+
+  const align = useCallback((ids: string[], mode: AlignMode) => {
+    const rects = latest.current.placements.filter((p) => ids.includes(p.id))
+    const patch = alignPatches(rects, mode)
+    const changed = Object.keys(patch)
+    if (!changed.length) return
+    patchPlacements(patch)
+    setTimeout(() => commitPlacements(changed), 0)
+  }, [patchPlacements, commitPlacements])
+
+  // ---- copy / cut / paste of cards (in-app clipboard: the same images, notes and shapes, with the lines between them) ----
+  const clip = useRef<{ items: Placement[]; lines: Connection[] } | null>(null)
+  const pasteCount = useRef(0)
+  const [hasClipboard, setHasClipboard] = useState(false)
+
+  const copyCards = useCallback((ids: string[]) => {
+    const { placements: ps, connections: lines } = latest.current
+    const items = ps.filter((p) => ids.includes(p.id))
+    if (!items.length) return
+    clip.current = { items, lines: lines.filter((c) => ids.includes(c.from) && ids.includes(c.to)) }
+    pasteCount.current = 0
+    setHasClipboard(true)
+    notify(`Copied ${items.length} card${items.length === 1 ? '' : 's'}`)
+  }, [notify])
+
+  /** Paste the copied cards onto the open board, centred on `at` (world units), each paste nudged so copies don't hide each other. */
+  const pasteCards = useCallback((at: { x: number; y: number }) => {
+    const c = clip.current
+    if (!c) return
+    const { placements: ps, assets: all, activeId: boardId } = latest.current
+    const items = c.items.filter((p) => !p.assetId || all[p.assetId]) // an image deleted from the library can't come back
+    if (!items.length) return notify('Those images are no longer in the library')
+    const x1 = Math.min(...items.map((p) => p.x)), y1 = Math.min(...items.map((p) => p.y))
+    const x2 = Math.max(...items.map((p) => p.x + p.w)), y2 = Math.max(...items.map((p) => p.y + p.h))
+    const nudge = 24 * pasteCount.current++
+    const dx = at.x - (x1 + x2) / 2 + nudge, dy = at.y - (y1 + y2) / 2 + nudge
+    let z = Math.max(0, ...ps.filter((p) => p.boardId === boardId).map((p) => p.z))
+    const ids = new Map(items.map((p) => [p.id, newId()]))
+    const created: Placement[] = [...items].sort((a, b) => a.z - b.z).map((p) => ({ ...p, id: ids.get(p.id)!, boardId, x: p.x + dx, y: p.y + dy, z: ++z }))
+    const lines: Connection[] = c.lines.flatMap((l) => (ids.has(l.from) && ids.has(l.to) ? [{ id: newId(), boardId, from: ids.get(l.from)!, to: ids.get(l.to)! }] : []))
+    setPlacements((p) => [...p, ...created])
+    setConnections((l) => [...l, ...lines])
+    void db.savePlacements(created)
+    if (lines.length) void db.saveConnections(lines)
+    setSelection(created.map((p) => p.id))
+  }, [notify])
+
   const removeFromBoard = useCallback(
     (ids: string[]) => {
       if (!ids.length) return
@@ -359,6 +416,12 @@ export function useBoardApp() {
     }
     window.location.reload()
   }, [notify])
+
+  /** Cut = copy, then take off the board (the images stay in the library). */
+  const cutCards = useCallback((ids: string[]) => {
+    copyCards(ids)
+    removeFromBoard(ids)
+  }, [copyCards, removeFromBoard])
 
   // ---- tagging ----
   const updateAssets = useCallback((assetIds: string[], fn: (a: Asset) => Asset) => {
@@ -656,6 +719,7 @@ export function useBoardApp() {
 
   return {
     allPlacements: placements, connections, toggleConnection,
+    arrange, align, copyCards, cutCards, pasteCards, hasClipboard,
     query, setQuery, semantic, searchPending,
     screen, setScreen, librarySelection, setLibrarySelection, deleteAssets, addToBoard,
     tagging, modelProgress, editingId, setEditingId, addNote, addShape, editNote, setTint, setMode,

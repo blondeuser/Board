@@ -7,6 +7,7 @@ import { bentoLayout } from '../canvas/bento'
 import { boundsOf, clampZoom, fitRect, screenToWorld, zoomAt } from '../canvas/viewport'
 import { blobsFromTransfer } from '../items/importImage'
 import { MenuBar } from '../ui/MenuBar'
+import { ContextMenu, type MenuItem } from '../ui/ContextMenu'
 import { Sidebar } from '../ui/Sidebar'
 import { Inspector } from '../ui/Inspector'
 import type { ShapeKind } from '../shared/types'
@@ -45,6 +46,7 @@ export function App() {
     window.addEventListener('keydown', esc)
     return () => window.removeEventListener('keydown', esc)
   }, [tool])
+  const [ctx, setCtx] = useState<{ x: number; y: number } | null>(null)
   const [peek, setPeek] = useState(false)
   const peekTimer = useRef<number>(0)
   const toggleSidebar = useCallback(() => {
@@ -80,7 +82,12 @@ export function App() {
       if ((e.target as HTMLElement).matches?.('input, textarea') || !e.clipboardData || !live.current.board) return
       e.preventDefault()
       const p = pointer.current
-      void ingest(e.clipboardData, p?.x, p?.y)
+      const a = live.current
+      const dt = e.clipboardData
+      // Something copied outside the app (image file, image URL) wins; otherwise paste the cards copied inside it.
+      const outside = [...dt.files].some((f) => f.type.startsWith('image/')) || /^https?:\/\//i.test(dt.getData('text/plain').trim())
+      if (!outside && a.hasClipboard && a.screen === 'board') a.pasteCards(worldPointAt(p?.x, p?.y))
+      else void ingest(dt, p?.x, p?.y)
     }
     const onMove = (e: PointerEvent) => {
       const r = viewportRef.current?.getBoundingClientRect()
@@ -110,7 +117,12 @@ export function App() {
         }
         return
       }
-      if (e.key === 'Delete' || e.key === 'Backspace') a.removeFromBoard(a.selection)
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && (e.key.toLowerCase() === 'c' || e.key.toLowerCase() === 'x')) {
+        if (!a.selection.length) return
+        e.preventDefault()
+        if (e.key.toLowerCase() === 'c') a.copyCards(a.selection)
+        else a.cutCards(a.selection)
+      } else if (e.key === 'Delete' || e.key === 'Backspace') a.removeFromBoard(a.selection)
       else if (e.key === 'Escape') a.setSelection([])
       else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
         e.preventDefault()
@@ -125,7 +137,7 @@ export function App() {
       window.removeEventListener('pointermove', onMove)
       window.removeEventListener('keydown', onKey)
     }
-  }, [ingest, toggleSidebar])
+  }, [ingest, toggleSidebar, worldPointAt])
 
   const bento = app.board?.mode === 'bento'
   const { boardPlacements, assets } = app
@@ -162,6 +174,46 @@ export function App() {
   }
   const selectedPlacements = app.boardPlacements.filter((p) => app.selection.includes(p.id))
   const linked = selectedPlacements.length === 2 && app.connections.some((c) => selectedPlacements.every((p) => p.id === c.from || p.id === c.to))
+  const openMenu = (x: number, y: number, id: string | null) => {
+    if (id && !app.selection.includes(id)) app.setSelection([id])
+    if (!id) app.setSelection([])
+    setCtx({ x, y })
+  }
+  const ids = selectedPlacements.map((p) => p.id)
+  const n = ids.length
+  const mod = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl+'
+  const free = !bento
+  const menuItems: (MenuItem | 'sep')[] = [
+    { label: 'Cut', keys: `${mod}X`, disabled: !n, run: () => app.cutCards(ids) },
+    { label: 'Copy', keys: `${mod}C`, disabled: !n, run: () => app.copyCards(ids) },
+    { label: 'Paste', keys: `${mod}V`, disabled: !app.hasClipboard, run: () => ctx && app.pasteCards(worldPointAt(ctx.x, ctx.y)) },
+    { label: 'Delete', keys: 'Del', disabled: !n, run: () => app.removeFromBoard(ids) },
+    'sep',
+    {
+      label: 'Arrange', disabled: !n || !free,
+      children: [
+        { label: 'Bring to Front', run: () => app.arrange(ids, 'front') },
+        { label: 'Bring Forward', run: () => app.arrange(ids, 'forward') },
+        { label: 'Send Backward', run: () => app.arrange(ids, 'backward') },
+        { label: 'Send to Back', run: () => app.arrange(ids, 'back') },
+      ],
+    },
+    {
+      label: 'Align', disabled: n < 2 || !free,
+      children: [
+        { label: 'Left', run: () => app.align(ids, 'left') },
+        { label: 'Centre horizontally', run: () => app.align(ids, 'hcenter') },
+        { label: 'Right', run: () => app.align(ids, 'right') },
+        'sep',
+        { label: 'Top', run: () => app.align(ids, 'top') },
+        { label: 'Centre vertically', run: () => app.align(ids, 'vmiddle') },
+        { label: 'Bottom', run: () => app.align(ids, 'bottom') },
+        'sep',
+        { label: 'Distribute horizontally', disabled: n < 3, run: () => app.align(ids, 'hdist') },
+        { label: 'Distribute vertically', disabled: n < 3, run: () => app.align(ids, 'vdist') },
+      ],
+    },
+  ]
   const filtering = app.filter.colors.length + app.filter.categories.length + app.filter.types.length > 0
 
   return (
@@ -195,6 +247,7 @@ export function App() {
           connections={app.connections}
           locked={bento}
           tool={tool}
+          onContextMenu={openMenu}
           onDraw={(r) => { if (tool) app.addShape(tool, r); setTool(null) }}
           editingId={app.editingId}
           onStartEdit={app.setEditingId}
@@ -245,6 +298,7 @@ export function App() {
             ].filter(Boolean).join(' · ')}
           </button>
         )}
+        {ctx && app.screen === 'board' && <ContextMenu x={ctx.x} y={ctx.y} items={menuItems} onClose={() => setCtx(null)} />}
         {app.message && <div className="toast">{app.message}</div>}
       </main>
       </div>
