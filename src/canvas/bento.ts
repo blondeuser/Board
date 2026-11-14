@@ -15,9 +15,9 @@ export const BENTO_COLUMNS = 4
 export const BENTO_CELL = 240
 export const BENTO_GAP = 16
 
-/** Column/row span for a card: wide images 2x1, tall 1x2, every 5th squarish image 2x2, long notes 2x1. */
+/** Column/row span for a card: wide images 2x1, tall 1x2, every 5th squarish image 2x2, notes 1x2 (tall). */
 function spanOf(it: BentoInput, index: number): { c: number; r: number } {
-  if (it.kind === 'note') return (it.textLength ?? 0) > 140 ? { c: 2, r: 1 } : { c: 1, r: 1 }
+  if (it.kind === 'note') return { c: 1, r: 2 } // notes are always tall
   const aspect = it.w / it.h
   if (aspect >= 1.5) return { c: 2, r: 1 }
   if (aspect <= 0.67) return { c: 1, r: 2 }

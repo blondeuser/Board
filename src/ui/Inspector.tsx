@@ -1,6 +1,6 @@
 import type { BoardApp } from '../app/useBoardApp'
 import { COLOR_FAMILIES } from '../categorize/color'
-import { NOTE_TINTS, type Placement } from '../shared/types'
+import { NOTE_GREYS, NOTE_TINTS, type Placement } from '../shared/types'
 import { ALL_TYPE_LABELS, typeName } from '../categorize/style/labels'
 import { readableOn } from '../shared/contrast'
 import { DownloadIcon, TrashIcon } from './icons'
@@ -91,7 +91,7 @@ export function Inspector({ app, assetIds, notes = [], shapes = [], count, onRem
         <>
           <h3>{notes.length ? 'Note colour' : 'Shape colour'}</h3>
           <div className="tints">
-            {NOTE_TINTS.map((t) => (
+            {(notes.length ? NOTE_GREYS : NOTE_TINTS).map((t) => (
               <button key={t} className={'swatch' + (tinted.every((n) => n.tint === t) ? ' on' : '')} style={{ background: t }} title="Tint" onClick={() => app.setTint(tinted.map((n) => n.id), t)} />
             ))}
           </div>

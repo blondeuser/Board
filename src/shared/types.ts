@@ -60,6 +60,13 @@ export interface AssetSource {
   details?: Record<string, string>
 }
 
+/** Note colours: muted greys only (light to dark). Shapes keep NOTE_TINTS. */
+export const NOTE_GREYS = ['#dcdcd8', '#cfcfcb', '#c2c2be', '#e8e8e5', '#b5b5b1'] as const
+/** Notes are always tall 3:4 cards (width:height). */
+export const NOTE_W = 240
+export const NOTE_H = 320
+export const noteHeight = (w: number): number => Math.round((w * 4) / 3)
+
 export const NOTE_TINTS = ['#f9e2af', '#f5c2e7', '#a6e3a1', '#89dceb', '#cba6f7'] as const
 
 export type ShapeKind = 'rect' | 'ellipse' | 'triangle' | 'diamond'

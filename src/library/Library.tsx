@@ -151,7 +151,7 @@ export function Library({ app, onDropData, onDelete }: { app: BoardApp; onDropDa
         </div>
       ) : !searching && (groupBy === 'type' || groupBy === 'color' || groupBy === 'source') ? (
         <>
-          <div className="stacks" onClick={(e) => e.stopPropagation()}>
+          <div className={'stacks' + (openStack ? ' has-open' : '')} onClick={(e) => e.stopPropagation()}>
             {groups.map((g) => (
               <button key={g.key} className={'stack-tile' + (openStack === g.key ? ' open' : '')} aria-expanded={openStack === g.key} onClick={() => setOpenStack(openStack === g.key ? '' : g.key)}>
                 <span className="stack">

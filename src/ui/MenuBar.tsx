@@ -90,7 +90,7 @@ export function MenuBar({ app, sidebarOpen, onToggleSidebar, onLitImport }: { ap
   return (
     <nav className="menubar" ref={bar} aria-label="Menu bar">
       <button className="icon sidebar-toggle" title={sidebarOpen ? 'Hide sidebar' : 'Show sidebar'} aria-pressed={sidebarOpen} onClick={onToggleSidebar}><SidebarIcon /></button>
-      <strong className="app-name">Board</strong>
+      <strong className="app-name"><i>ReM:</i>ind</strong>
       {menus.map((m) => (
         <div key={m.title} className="menu">
           <button

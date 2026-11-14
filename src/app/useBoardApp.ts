@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { NOTE_TINTS, type Asset, type AssetSource, type Board, type Category, type Connection, type Placement, type ShapeKind, type ViewState } from '../shared/types'
+import { NOTE_GREYS, NOTE_H, NOTE_TINTS, NOTE_W, noteHeight, type Asset, type AssetSource, type Board, type Category, type Connection, type Placement, type ShapeKind, type ViewState } from '../shared/types'
 import { newId } from '../shared/id'
 import { db } from '../storage/db'
 import { importImage, makeThumbnail } from '../items/importImage'
@@ -81,6 +81,19 @@ export function useBoardApp() {
       setBoards(b)
       setActiveId(localStorage.getItem('board.active') && b.some((x) => x.id === localStorage.getItem('board.active')) ? localStorage.getItem('board.active')! : b[0].id)
       setAssets(Object.fromEntries(a.map((x) => [x.id, x])))
+      // Notes are always tall 3:4 cards in muted greys: bring older notes in line once.
+      const fixed: Placement[] = []
+      let ni = 0
+      p = p.map((x) => {
+        if (x.kind !== 'note') return x
+        const grey = (NOTE_GREYS as readonly string[]).includes(x.tint ?? '') ? x.tint : NOTE_GREYS[ni++ % NOTE_GREYS.length]
+        const h = noteHeight(x.w)
+        if (grey === x.tint && h === x.h) return x
+        const y = { ...x, tint: grey, h }
+        fixed.push(y)
+        return y
+      })
+      if (fixed.length) void db.savePlacements(fixed)
       setPlacements(p)
       setCategories(c)
       setConnections(lines)
@@ -288,8 +301,8 @@ export function useBoardApp() {
     const z = Math.max(0, ...ps.filter((p) => p.boardId === boardId).map((p) => p.z)) + 1
     const n = ps.filter((p) => p.boardId === boardId && p.kind === 'note').length
     const note: Placement = {
-      id: newId(), boardId, kind: 'note', assetId: '', text: '', tint: NOTE_TINTS[n % NOTE_TINTS.length],
-      x: center.x - 120, y: center.y - 80, w: 240, h: 160, z,
+      id: newId(), boardId, kind: 'note', assetId: '', text: '', tint: NOTE_GREYS[n % NOTE_GREYS.length],
+      x: center.x - NOTE_W / 2, y: center.y - NOTE_H / 2, w: NOTE_W, h: NOTE_H, z,
     }
     setPlacements((p) => [...p, note])
     void db.savePlacements([note])

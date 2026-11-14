@@ -259,7 +259,8 @@ export function Canvas(props: Props) {
         props.onDropData(e.dataTransfer, e.clientX, e.clientY)
       }}
       onDoubleClick={(e) => {
-        const el = (e.target as HTMLElement).closest<HTMLElement>('[data-pid]')
+        // The canvas captures the pointer on press, so e.target is the viewport itself: find the card under the cursor instead.
+        const el = document.elementFromPoint(e.clientX, e.clientY)?.closest<HTMLElement>('[data-pid]')
         const p = placements.find((x) => x.id === el?.dataset.pid)
         if (p?.kind === 'note') props.onStartEdit(p.id)
       }}
