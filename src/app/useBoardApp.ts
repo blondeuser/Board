@@ -9,7 +9,7 @@ import { analyseImage, embedText, setModelProgressListener } from '../categorize
 import { queryToPrompt, semanticMatches } from '../categorize/style/search'
 import { EMBEDDING_MODEL } from '../categorize/style/model'
 import { zipSync, type Zippable } from 'fflate'
-import { typeName } from '../categorize/style/labels'
+import { SPACES_VERSION, pickSpaces, typeName } from '../categorize/style/labels'
 import { APP_VERSION, buildBo, type BoAsset } from '../storage/bo/write'
 import { BoError, parseBo, planImport } from '../storage/bo/read'
 import { extOf, mimeOf, sha256Hex } from '../storage/bo/hash'
@@ -592,9 +592,13 @@ export function useBoardApp() {
           try {
             const blob = (await db.thumb(id)) ?? (await db.blob(id))
             if (!blob) continue
-            const { types, embedding } = await analyseImage(blob)
-            // Never overwrite types the user already edited while we were working.
-            updateAssets([id], (a) => ({ ...a, embedding, embeddingModel: EMBEDDING_MODEL, types: a.types === undefined ? types : a.types }))
+            const { types, embedding, detail } = await analyseImage(blob)
+            // Never overwrite types the user already edited while we were working; only add space tags next to them.
+            updateAssets([id], (a) => {
+              const base = a.types ?? types
+              const spaces = pickSpaces(base, detail).filter((t) => !base.includes(t))
+              return { ...a, embedding, embeddingModel: EMBEDDING_MODEL, spacesVersion: SPACES_VERSION, types: [...base, ...spaces] }
+            })
           } catch {
             if (!warned.current) {
               warned.current = true
@@ -615,7 +619,7 @@ export function useBoardApp() {
 
   useEffect(() => {
     if (!ready) return
-    const todo = Object.values(assets).filter((a) => a.embeddingModel !== EMBEDDING_MODEL).map((a) => a.id)
+    const todo = Object.values(assets).filter((a) => a.embeddingModel !== EMBEDDING_MODEL || a.spacesVersion !== SPACES_VERSION).map((a) => a.id)
     if (todo.length) autoTag(todo)
   }, [ready, assets, autoTag])
 

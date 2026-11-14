@@ -29,6 +29,8 @@ export interface Asset {
   categoryIds: string[]
   /** Image kinds (photo, screenshot, ...; see categorize/style/labels). Undefined = not detected yet. */
   types?: string[]
+  /** Version of the finer space tags (facade, atrium, ...) last detected; older or missing = detect again (see SPACES_VERSION). */
+  spacesVersion?: number
   /** CLIP image embedding (unit length) for search by meaning. Undefined = not computed yet. */
   embedding?: Float32Array
   /** Which model made `embedding` (see categorize/style/model). Embeddings from another model are recomputed. */

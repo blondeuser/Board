@@ -75,6 +75,13 @@ main { grid-column: 2; grid-row: 1; }
 .ctx-list { display: none; top: -6px; left: calc(100% + 2px); }
 .ctx-sub.flip .ctx-list { left: auto; right: calc(100% + 2px); }
 .ctx-sub:hover > .ctx-list { display: flex; }
+.menu-list { max-height: calc(100vh - 60px); overflow-y: auto; }
+.menu-row { display: flex; }
+.menu-row > button:first-child { flex: 1; }
+.menu-list .menu-x { flex: none; padding: 4px 8px; display: grid; place-items: center; opacity: 0.6; }
+.menu-list .menu-x:hover { opacity: 1; }
+.menu-label { display: flex; align-items: center; gap: 8px; }
+.menu-label .tick { width: 12px; font-style: normal; text-align: center; }
 .menu-list kbd { font: inherit; color: var(--muted); }
 .menu-list button:hover:not(:disabled) kbd { color: inherit; opacity: 0.8; }
 .menu-list hr { border: 0; height: 1px; background: var(--line); margin: 5px 6px; }
@@ -121,6 +128,14 @@ main { position: relative; min-width: 0; overflow: hidden; }
 .item.selected { outline: calc(2px * var(--inv)) solid var(--accent); outline-offset: calc(2px * var(--inv)); overflow: visible; }
 .item.selected img { border-radius: 10px; }
 .world.bento .item.selected img { border-radius: 16px; }
+.link-badge {
+  position: absolute; left: calc(8px * var(--inv)); top: calc(8px * var(--inv));
+  width: calc(24px * var(--inv)); height: calc(24px * var(--inv)); border-radius: 50%;
+  display: grid; place-items: center; cursor: pointer;
+  background: var(--panel); color: var(--text); box-shadow: 0 1px 4px rgb(0 0 0 / 0.25); opacity: 0.9;
+}
+.link-badge:hover { opacity: 1; }
+.link-badge svg { width: calc(14px * var(--inv)); height: calc(14px * var(--inv)); }
 .handle {
   position: absolute; right: calc(-7px * var(--inv)); bottom: calc(-7px * var(--inv));
   width: calc(12px * var(--inv)); height: calc(12px * var(--inv));
@@ -256,3 +271,120 @@ button.status { border: 0; font: inherit; font-size: 13px; cursor: default; }
 .btn:disabled { opacity: 0.45; cursor: default; }
 .progress { height: 6px; border-radius: 999px; background: var(--panel-2); overflow: hidden; }
 .progress i { display: block; height: 100%; background: var(--accent); transition: width 0.2s ease-out; }
+
+/* Concrete: flat sage-grey page, square white boxes with hairline edges, black active state, teal accent, tight grotesk type
+   (after the typesafe.ai blog look). No shadows or rounding; hover/active = invert to black. */
+:root[data-theme='concrete'] {
+  --bg: #abbab9;
+  --panel: #fefefe;
+  --panel-2: #98a9a8;
+  --ink: #1e1e1e;
+  --line: rgb(30 30 30 / 0.3);
+  --text: #1e1e1e;
+  --muted: #4d5a59;
+  --accent: #0aa79d;
+  --on-accent: #fefefe;
+  --note-text: #1e1e1e;
+  --shadow-sm: 0 0 0 1px var(--ink);
+  --shadow-md: 0 0 0 1px var(--ink);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color-scheme: light;
+}
+/* Concrete Dark: the same flat boxed look in blue-slate. --ink is the light edge/hover colour, hover text is the dark panel. */
+:root[data-theme='concrete-dark'] {
+  --bg: #151c28;
+  --panel: #1f2a3b;
+  --panel-2: #2b394f;
+  --ink: #d7e2f1;
+  --line: rgb(215 226 241 / 0.22);
+  --text: #d7e2f1;
+  --muted: #8a9bb4;
+  --accent: #35d0c0;
+  --on-accent: #0f1620;
+  --note-text: #1e1e1e;
+  --shadow-sm: 0 0 0 1px var(--ink);
+  --shadow-md: 0 0 0 1px var(--ink);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color-scheme: dark;
+}
+:root[data-theme='concrete-dark'] .marquee { background: rgb(53 208 192 / 0.14); }
+:root[data-theme='concrete-dark'] .chip.plain.on { color: var(--panel); }
+:root[data-theme^='concrete'] *:not(.handle):not(.link-badge):not(.dot):not(.swatch):not(.progress i) { border-radius: 0; }
+:root[data-theme^='concrete'] h2, :root[data-theme^='concrete'] h3 { color: var(--ink); font-weight: 500; text-transform: uppercase; font-size: 11px; letter-spacing: 0.04em; font-family: 'Fragment Mono', 'JetBrains Mono', ui-monospace, Consolas, monospace; }
+:root[data-theme^='concrete'] input, :root[data-theme^='concrete'] .modal select { box-shadow: none; border: 1px solid var(--ink); background: var(--panel); }
+/* top bar: white boxes side by side, hover/open = black */
+:root[data-theme^='concrete'] .menubar { background: var(--bg); box-shadow: none; padding: 0; gap: 4px; height: 30px; align-items: stretch; }
+:root[data-theme^='concrete'] .menubar .app-name { background: var(--panel); display: flex; align-items: center; padding: 0 10px; }
+:root[data-theme^='concrete'] .menu-title { background: var(--panel); height: auto; padding: 0 10px; }
+:root[data-theme^='concrete'] .menu-title:hover, :root[data-theme^='concrete'] .menu-title.open,
+:root[data-theme^='concrete'] .menu-list button:hover:not(:disabled), :root[data-theme^='concrete'] .ctx-sub:hover > button:not(:disabled) { background: var(--ink); color: var(--panel); }
+:root[data-theme^='concrete'] .menu-list { top: 31px; padding: 0; background: var(--panel); }
+:root[data-theme^='concrete'] .menu-list button { padding: 5px 10px; }
+/* sidebar + lists */
+:root[data-theme^='concrete'] .list li { color: var(--text); background: var(--panel); margin-bottom: 4px; min-height: 30px; }
+:root[data-theme^='concrete'] .list li:hover, :root[data-theme^='concrete'] .list li.active { background: var(--ink); color: var(--panel); box-shadow: none; }
+:root[data-theme^='concrete'] .icon { color: var(--ink); }
+:root[data-theme^='concrete'] .icon:hover:not(:disabled) { background: var(--ink); color: var(--panel); }
+:root[data-theme^='concrete'] .icon.on { background: var(--ink); color: var(--panel); }
+:root[data-theme^='concrete'] .link, :root[data-theme^='concrete'] .zoomval { color: var(--ink); }
+:root[data-theme^='concrete'] .zoomval:hover { background: var(--ink); color: var(--panel); }
+/* canvas + cards */
+:root[data-theme^='concrete'] .item { box-shadow: 0 0 0 1px var(--ink); }
+:root[data-theme^='concrete'] .item.shape { box-shadow: none; }
+:root[data-theme^='concrete'] .cell { box-shadow: 0 0 0 1px var(--ink); }
+:root[data-theme^='concrete'] .cell:hover { transform: none; box-shadow: 0 0 0 1px var(--ink), 6px 6px 0 var(--ink); }
+:root[data-theme^='concrete'] .cell.selected { box-shadow: 0 0 0 1px var(--ink), 0 0 0 4px var(--accent); }
+:root[data-theme^='concrete'] .item.selected { outline: calc(2px * var(--inv)) solid var(--accent); outline-offset: calc(2px * var(--inv)); }
+:root[data-theme^='concrete'] .handle { border-radius: 0; background: var(--accent); border-color: var(--panel); }
+:root[data-theme^='concrete'] .link-badge { border-radius: 0; background: var(--panel); box-shadow: 0 0 0 1px var(--ink); }
+:root[data-theme^='concrete'] .link-badge:hover { background: var(--ink); color: var(--panel); }
+:root[data-theme^='concrete'] .marquee { border-color: var(--ink); background: rgb(10 167 157 / 0.12); }
+/* library */
+:root[data-theme^='concrete'] .search { background: var(--panel); box-shadow: 0 0 0 1px var(--ink); color: var(--ink); height: 56px; }
+:root[data-theme^='concrete'] .search:focus-within { background: var(--panel); }
+:root[data-theme^='concrete'] .search input { border: 0; background: none; }
+:root[data-theme^='concrete'] .tabs button { background: var(--panel); color: var(--ink); }
+:root[data-theme^='concrete'] .tabs button:hover, :root[data-theme^='concrete'] .tabs button.on { background: var(--ink); color: var(--panel); box-shadow: none; }
+:root[data-theme^='concrete'] .chip { background: var(--panel); box-shadow: 0 0 0 1px var(--ink); }
+:root[data-theme^='concrete'] .chip:hover, :root[data-theme^='concrete'] .chip.on { background: var(--ink); color: var(--panel); }
+:root[data-theme^='concrete'] .segmented { background: none; padding: 0; gap: 4px; }
+:root[data-theme^='concrete'] .segmented button { background: var(--panel); color: var(--ink); }
+:root[data-theme^='concrete'] .segmented button.on { background: var(--ink); color: var(--panel); box-shadow: none; }
+:root[data-theme^='concrete'] .btn { background: var(--panel); box-shadow: 0 0 0 1px var(--ink); }
+:root[data-theme^='concrete'] .btn:hover:not(:disabled) { background: var(--ink); color: var(--panel); }
+:root[data-theme^='concrete'] .toast, :root[data-theme^='concrete'] .status { color: var(--ink); }
+:root[data-theme^='concrete'] .btn.primary { background: var(--accent); color: var(--on-accent); }
+:root[data-theme^='concrete'] .menu { display: flex; }
+:root[data-theme^='concrete'] .menu-title { height: auto; }
+:root[data-theme^='concrete'] .menubar .sidebar-toggle { height: auto; align-self: center; margin-right: 6px; }
+
+/* Concrete, from typesafe.ai's landing page: OS-window title bars on panels and dialogs, mono labels with a left rule on
+   Library groups, crop marks on the empty board, toasts as small title-bar notes. */
+:root[data-theme^='concrete'] .inspector header, :root[data-theme^='concrete'] .modal header {
+  background: var(--ink); color: var(--panel); padding: 3px 4px 3px 10px; margin-bottom: 12px;
+  font-family: 'Fragment Mono', 'JetBrains Mono', ui-monospace, Consolas, monospace; font-size: 12px; text-transform: uppercase; letter-spacing: 0.03em;
+}
+:root[data-theme^='concrete'] .inspector header { margin: -12px -14px 12px; }
+:root[data-theme^='concrete'] .modal header { margin: -14px -18px 12px; }
+:root[data-theme^='concrete'] .inspector header strong, :root[data-theme^='concrete'] .modal header strong { font-weight: 400; font-size: 12px; }
+:root[data-theme^='concrete'] .inspector header .icon, :root[data-theme^='concrete'] .modal header .icon { color: var(--panel); width: 24px; height: 22px; }
+:root[data-theme^='concrete'] .inspector header .icon:hover:not(:disabled), :root[data-theme^='concrete'] .modal header .icon:hover:not(:disabled) { background: var(--panel); color: var(--ink); }
+:root[data-theme^='concrete'] .modal, :root[data-theme^='concrete'] .inspector { box-shadow: 0 0 0 1px var(--ink), 6px 6px 0 var(--ink); }
+:root[data-theme^='concrete'] .group-head { border-left: 1px solid var(--ink); padding-left: 10px; }
+:root[data-theme^='concrete'] .group-head strong, :root[data-theme^='concrete'] .group-toggle {
+  font-family: 'Fragment Mono', 'JetBrains Mono', ui-monospace, Consolas, monospace; font-size: 12px; font-weight: 400; text-transform: uppercase; letter-spacing: 0.03em;
+}
+:root[data-theme^='concrete'] .toast { background: var(--ink); color: var(--panel); font-family: 'Fragment Mono', 'JetBrains Mono', ui-monospace, Consolas, monospace; font-size: 12px; }
+:root[data-theme^='concrete'] .empty p {
+  position: relative; margin: 0; padding: 22px 34px; color: var(--ink); font-family: 'Fragment Mono', 'JetBrains Mono', ui-monospace, Consolas, monospace; font-size: 12px; text-transform: uppercase; letter-spacing: 0.03em;
+  background:
+    linear-gradient(var(--ink), var(--ink)) top left / 12px 1px, linear-gradient(var(--ink), var(--ink)) top left / 1px 12px,
+    linear-gradient(var(--ink), var(--ink)) top right / 12px 1px, linear-gradient(var(--ink), var(--ink)) top right / 1px 12px,
+    linear-gradient(var(--ink), var(--ink)) bottom left / 12px 1px, linear-gradient(var(--ink), var(--ink)) bottom left / 1px 12px,
+    linear-gradient(var(--ink), var(--ink)) bottom right / 12px 1px, linear-gradient(var(--ink), var(--ink)) bottom right / 1px 12px;
+  background-repeat: no-repeat;
+}
+.marquee.fixed { position: fixed; z-index: 40; }
+.library { user-select: none; }

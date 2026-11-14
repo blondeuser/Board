@@ -6,9 +6,10 @@
     <title>Board</title>
     <script>
       try {
-        document.documentElement.dataset.theme = localStorage.getItem('board.theme') === 'latte' ? 'latte' : 'mocha'
+        var t = localStorage.getItem('board.theme')
+        document.documentElement.dataset.theme = t === 'latte' || t === 'mocha' || t === 'concrete-dark' ? t : 'concrete'
       } catch (e) {
-        document.documentElement.dataset.theme = 'mocha'
+        document.documentElement.dataset.theme = 'concrete'
       }
     </script>
     <link rel="icon" href="data:," />

@@ -1,18 +1,16 @@
-import { useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import type { BoardApp } from '../app/useBoardApp'
-import { COLOR_FAMILIES } from '../categorize/color'
-import { TYPE_LABELS } from '../categorize/style/labels'
+import { COLOR_FAMILIES, familyShades } from '../categorize/color'
 import { CloseIcon, PlusIcon, GridIcon, DownloadIcon, UploadIcon } from './icons'
 import { ThemeToggle } from './ThemeToggle'
 
 export function Sidebar({ app }: { app: BoardApp }) {
-  const { boards, activeId, categories, filter } = app
+  const { boards, activeId, filter } = app
   const [editing, setEditing] = useState('')
-  const [adding, setAdding] = useState(false)
   const boFile = useRef<HTMLInputElement>(null)
   const hasFilter = filter.colors.length + filter.categories.length + filter.types.length > 0
-  const used = new Set(Object.values(app.assets).flatMap((a) => a.types ?? []))
-  const typesInUse = TYPE_LABELS.filter((t) => used.has(t.id))
+  // Swatches show the library's real colour for each family (falls back to the family's base colour when nothing is in it).
+  const shades = useMemo(() => familyShades(Object.values(app.assets).map((a) => a.palette)), [app.assets])
 
   return (
     <aside className="sidebar">
@@ -88,7 +86,7 @@ export function Sidebar({ app }: { app: BoardApp }) {
             <button
               key={c.name}
               className={'swatch' + (filter.colors.includes(c.name) ? ' on' : '')}
-              style={{ background: c.hex }}
+              style={{ background: shades.get(c.name) ?? c.hex }}
               title={c.name}
               aria-pressed={filter.colors.includes(c.name)}
               onClick={() => app.toggleFilter('colors', c.name)}
@@ -97,55 +95,6 @@ export function Sidebar({ app }: { app: BoardApp }) {
         </div>
       </section>
 
-      {typesInUse.length > 0 && (
-        <section>
-          <header>
-            <h2>Type</h2>
-          </header>
-          <div className="chips pad">
-            {typesInUse.map((t) => (
-              <button key={t.id} className={'chip plain' + (filter.types.includes(t.id) ? ' on' : '')} aria-pressed={filter.types.includes(t.id)} onClick={() => app.toggleFilter('types', t.id)}>
-                {t.name}
-              </button>
-            ))}
-          </div>
-        </section>
-      )}
-
-      <section>
-        <header>
-          <h2>Categories</h2>
-          <button className="icon" title="New category" onClick={() => setAdding(true)}><PlusIcon /></button>
-        </header>
-        <ul className="list">
-          {categories.map((c) => (
-            <li key={c.id} className={filter.categories.includes(c.id) ? 'active' : ''} onClick={() => app.toggleFilter('categories', c.id)}>
-              <i className="dot" style={{ background: c.color }} />
-              <span className="name">{c.name}</span>
-              <button
-                className="icon small hover"
-                title="Delete category"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  if (confirm(`Delete category "${c.name}"? Images keep their other tags.`)) app.removeCategory(c.id)
-                }}
-              >
-                <CloseIcon />
-              </button>
-            </li>
-          ))}
-          {adding && (
-            <li>
-              <input
-                autoFocus
-                placeholder="Category name"
-                onBlur={(e) => { app.addCategory(e.target.value); setAdding(false) }}
-                onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); if (e.key === 'Escape') { e.currentTarget.value = ''; e.currentTarget.blur() } }}
-              />
-            </li>
-          )}
-        </ul>
-      </section>
       <ThemeToggle />
     </aside>
   )

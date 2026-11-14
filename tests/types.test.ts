@@ -18,3 +18,26 @@ describe('pickTypes', () => {
     expect(new Set(TYPE_LABELS.map((t) => t.id)).size).toBe(TYPE_LABELS.length)
   })
 })
+
+import { pickSpaces, SPACE_LABELS } from '../src/categorize/style/labels'
+
+const sp = (id: string) => SPACE_LABELS.find((t) => t.id === id)!.prompt
+
+describe('pickSpaces', () => {
+  const detail = [
+    { label: sp('facade'), score: 0.7 },
+    { label: sp('courtyard'), score: 0.2 },
+    { label: sp('atrium'), score: 0.5 },
+    { label: sp('high-ceiling'), score: 0.4 },
+    { label: sp('bedroom'), score: 0.1 },
+  ]
+  it('only uses the groups whose parent type is present', () => {
+    expect(pickSpaces(['architecture'], detail)).toEqual(['facade'])
+    expect(pickSpaces(['interior'], detail)).toEqual(['atrium', 'high-ceiling'])
+    expect(pickSpaces(['photo'], detail)).toEqual([])
+  })
+  it('has unique ids that do not clash with the main types', () => {
+    const ids = [...SPACE_LABELS.map((t) => t.id), ...TYPE_LABELS.map((t) => t.id)]
+    expect(new Set(ids).size).toBe(ids.length)
+  })
+})

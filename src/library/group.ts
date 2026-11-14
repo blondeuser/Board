@@ -1,6 +1,6 @@
 import type { Asset, Category } from '../shared/types'
 import { COLOR_FAMILIES } from '../categorize/color'
-import { TYPE_LABELS } from '../categorize/style/labels'
+import { ALL_TYPE_LABELS } from '../categorize/style/labels'
 
 export type GroupBy = 'none' | 'category' | 'type' | 'color' | 'source'
 
@@ -23,7 +23,7 @@ export function groupAssets(assets: Asset[], by: GroupBy, categories: Category[]
       : by === 'category'
       ? categories.map((c) => ({ key: c.id, name: c.name, color: c.color, has: (a) => a.categoryIds.includes(c.id) }))
       : by === 'type'
-        ? TYPE_LABELS.map((t) => ({ key: t.id, name: t.name, has: (a) => !!a.types?.includes(t.id) }))
+        ? ALL_TYPE_LABELS.map((t) => ({ key: t.id, name: t.name, has: (a) => !!a.types?.includes(t.id) }))
         : COLOR_FAMILIES.map((c) => ({ key: c.name, name: c.name[0].toUpperCase() + c.name.slice(1), color: c.hex, has: (a) => a.colors.includes(c.name) }))
 
   const groups: Group[] = defs

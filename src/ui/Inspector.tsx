@@ -1,7 +1,7 @@
 import type { BoardApp } from '../app/useBoardApp'
 import { COLOR_FAMILIES } from '../categorize/color'
 import { NOTE_TINTS, type Placement } from '../shared/types'
-import { TYPE_LABELS, typeName } from '../categorize/style/labels'
+import { ALL_TYPE_LABELS, typeName } from '../categorize/style/labels'
 import { readableOn } from '../shared/contrast'
 import { DownloadIcon, TrashIcon } from './icons'
 
@@ -129,7 +129,7 @@ export function Inspector({ app, assetIds, notes = [], shapes = [], count, onRem
               onChange={(e) => e.target.value && app.toggleTag(assetIds, 'types', e.target.value)}
             >
               <option value="">+ Type</option>
-              {TYPE_LABELS.filter((t) => !hasType(t.id)).map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+              {ALL_TYPE_LABELS.filter((t) => !hasType(t.id)).map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
           </div>
 
@@ -146,7 +146,7 @@ export function Inspector({ app, assetIds, notes = [], shapes = [], count, onRem
                 {c.name}
               </button>
             ))}
-            {!app.categories.length && <span className="muted">Add categories in the sidebar</span>}
+            {!app.categories.length && <span className="muted">Add categories from the Categories menu</span>}
           </div>
         </>
       )}

@@ -2,7 +2,7 @@ import { pickTypes, type Scored } from './labels'
 
 type Msg =
   | { type: 'progress'; progress: number }
-  | { type: 'image'; id: string; embedding: Float32Array; scores: Scored[] }
+  | { type: 'image'; id: string; embedding: Float32Array; scores: Scored[]; detail: Scored[] }
   | { type: 'text'; id: string; embedding: Float32Array }
   | { type: 'error'; id: string; message: string }
 
@@ -11,6 +11,8 @@ export interface ImageAnalysis {
   types: string[]
   /** Unit-length CLIP embedding, used for search by meaning. */
   embedding: Float32Array
+  /** Space-tag scores within each parent group; turn into tags with `pickSpaces(types, detail)`. */
+  detail: Scored[]
 }
 
 let worker: Worker | null = null
@@ -47,7 +49,7 @@ export const setModelProgressListener = (fn: (percent: number) => void) => (onPr
 export async function analyseImage(blob: Blob): Promise<ImageAnalysis> {
   const m = await ask({ kind: 'image', blob })
   if (m.type !== 'image') throw new Error('unexpected reply')
-  return { types: pickTypes(m.scores), embedding: m.embedding }
+  return { types: pickTypes(m.scores), embedding: m.embedding, detail: m.detail }
 }
 
 /** Embed a search phrase into the same space as the images. */

@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
 import { MoonIcon, SunIcon } from './icons'
 
-type Theme = 'mocha' | 'latte'
+const THEMES = ['concrete', 'concrete-dark', 'latte', 'mocha'] as const
+type Theme = (typeof THEMES)[number]
+const LABEL: Record<Theme, string> = { concrete: 'Concrete (grey)', 'concrete-dark': 'Concrete Dark (blue)', latte: 'Latte (light)', mocha: 'Mocha (dark)' }
 
-const read = (): Theme => (document.documentElement.dataset.theme === 'latte' ? 'latte' : 'mocha')
+const read = (): Theme => THEMES.find((t) => t === document.documentElement.dataset.theme) ?? 'concrete'
 
-/** Switches between Catppuccin Mocha (dark) and Latte (light); the choice is remembered. */
+/** Cycles Concrete (flat grey) → Concrete Dark (blue-slate) → Latte (light) → Mocha (dark); the choice is remembered. */
 export function ThemeToggle() {
   const [theme, setTheme] = useState<Theme>(read)
   useEffect(() => {
@@ -16,14 +18,10 @@ export function ThemeToggle() {
       /* storage unavailable: the choice just won't be remembered */
     }
   }, [theme])
-  const next = theme === 'mocha' ? 'latte' : 'mocha'
+  const next = THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length]
   return (
-    <button
-      className="icon theme-toggle"
-      title={next === 'latte' ? 'Switch to Latte (light)' : 'Switch to Mocha (dark)'}
-      onClick={() => setTheme(next)}
-    >
-      {theme === 'mocha' ? <SunIcon /> : <MoonIcon />}
+    <button className="icon theme-toggle" title={`Switch to ${LABEL[next]}`} onClick={() => setTheme(next)}>
+      {theme === 'mocha' || theme === 'concrete-dark' ? <SunIcon /> : <MoonIcon />}
     </button>
   )
 }

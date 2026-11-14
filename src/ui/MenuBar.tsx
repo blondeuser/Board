@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { BoardApp } from '../app/useBoardApp'
-import { SidebarIcon } from './icons'
+import { ALL_TYPE_LABELS } from '../categorize/style/labels'
+import { CloseIcon, SidebarIcon } from './icons'
 
 const isMac = /Mac|iPhone|iPad/.test(navigator.platform)
 const mod = isMac ? '⌘' : 'Ctrl+'
@@ -11,6 +12,13 @@ interface Item {
   keys?: string
   disabled?: boolean
   run: () => void
+  /** Filter menus: shows a tick when on, and the menu stays open so several can be picked. */
+  checked?: boolean
+  keepOpen?: boolean
+  /** Colour dot before the label (categories). */
+  dot?: string
+  /** Small × at the right of the row (delete a category). */
+  remove?: () => void
 }
 
 /** A macOS-style menu bar: click a title to open it, hover to move between open menus, Esc or a click elsewhere closes. */
@@ -23,7 +31,19 @@ export function MenuBar({ app, sidebarOpen, onToggleSidebar, onLitImport }: { ap
     ? [...new Set(app.boardPlacements.filter((p) => app.selection.includes(p.id) && p.assetId).map((p) => p.assetId))]
     : app.librarySelection
 
-  const menus: { title: string; items: (Item | 'sep')[] }[] = [
+  const { filter, categories } = app
+  const used = new Set(Object.values(app.assets).flatMap((a) => a.types ?? []))
+  const typeItems: (Item | 'sep')[] = ALL_TYPE_LABELS.filter((t) => used.has(t.id)).map((t) => ({
+    label: t.name, checked: filter.types.includes(t.id), keepOpen: true, run: () => app.toggleFilter('types', t.id),
+  }))
+  const categoryItems: (Item | 'sep')[] = categories.map((c) => ({
+    label: c.name, dot: c.color, checked: filter.categories.includes(c.id), keepOpen: true, run: () => app.toggleFilter('categories', c.id),
+    remove: () => { if (confirm(`Delete category "${c.name}"? Images keep their other tags.`)) app.removeCategory(c.id) },
+  }))
+  if (categoryItems.length) categoryItems.push('sep')
+  categoryItems.push({ label: 'New Category…', run: () => { const name = prompt('Category name'); if (name?.trim()) app.addCategory(name.trim()) } })
+
+  const menus: { title: string; badge?: number; items: (Item | 'sep')[] }[] = [
     {
       title: 'File',
       items: [
@@ -49,6 +69,8 @@ export function MenuBar({ app, sidebarOpen, onToggleSidebar, onLitImport }: { ap
       title: 'View',
       items: [{ label: sidebarOpen ? 'Hide Sidebar' : 'Show Sidebar', keys: `${mod}\\`, run: onToggleSidebar }],
     },
+    { title: 'Type', badge: filter.types.length, items: typeItems.length ? typeItems : [{ label: 'No types detected yet', disabled: true, run: () => {} }] },
+    { title: 'Categories', badge: filter.categories.length, items: categoryItems },
   ]
 
   useEffect(() => {
@@ -78,7 +100,7 @@ export function MenuBar({ app, sidebarOpen, onToggleSidebar, onLitImport }: { ap
             onClick={() => setOpen(open === m.title ? null : m.title)}
             onPointerEnter={() => open && setOpen(m.title)}
           >
-            {m.title}
+            {m.title}{m.badge ? ` · ${m.badge}` : ''}
           </button>
           {open === m.title && (
             <div className="menu-list" role="menu">
@@ -86,18 +108,25 @@ export function MenuBar({ app, sidebarOpen, onToggleSidebar, onLitImport }: { ap
                 it === 'sep' ? (
                   <hr key={i} />
                 ) : (
-                  <button
-                    key={it.label}
-                    role="menuitem"
-                    disabled={it.disabled}
-                    onClick={() => {
-                      setOpen(null)
-                      it.run()
-                    }}
-                  >
-                    <span>{it.label}</span>
-                    {it.keys && <kbd>{it.keys}</kbd>}
-                  </button>
+                  <div key={it.label} className="menu-row">
+                    <button
+                      role={it.checked === undefined ? 'menuitem' : 'menuitemcheckbox'}
+                      aria-checked={it.checked}
+                      disabled={it.disabled}
+                      onClick={() => {
+                        if (!it.keepOpen) setOpen(null)
+                        it.run()
+                      }}
+                    >
+                      <span className="menu-label">
+                        {it.checked !== undefined && <i className="tick">{it.checked ? '✓' : ''}</i>}
+                        {it.dot && <i className="dot" style={{ background: it.dot }} />}
+                        {it.label}
+                      </span>
+                      {it.keys && <kbd>{it.keys}</kbd>}
+                    </button>
+                    {it.remove && <button className="menu-x" title={`Delete ${it.label}`} onClick={it.remove}><CloseIcon /></button>}
+                  </div>
                 ),
               )}
             </div>

@@ -45,3 +45,13 @@ describe('colorFamilies', () => {
     expect(f).toEqual(['red', 'blue'])
   })
 })
+
+import { familyShades } from '../src/categorize/color/palette'
+describe('familyShades', () => {
+  it('averages palette colours per family, weighted by share', () => {
+    const m = familyShades([[{ hex: '#ff0000', share: 0.5 }], [{ hex: '#ff0000', share: 0.5 }, { hex: '#ffffff', share: 0.5 }]])
+    expect(m.get('red')).toBe('#ff0000')
+    expect(m.get('white')).toBe('#ffffff')
+    expect(m.has('blue')).toBe(false)
+  })
+})

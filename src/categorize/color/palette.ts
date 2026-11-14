@@ -88,3 +88,23 @@ export function colorFamilies(palette: PaletteColor[], minShare = 0.15): ColorFa
   const sorted = [...share.entries()].sort((a, b) => b[1] - a[1])
   return sorted.filter(([, s], i) => i === 0 || s >= minShare).map(([f]) => f)
 }
+
+/**
+ * The real colour of each family in a set of palettes: the share-weighted mean (in OKLab) of every palette colour that falls in
+ * that family. Families with no colours are left out. Used to paint the sidebar swatches with the library's actual palette.
+ */
+export function familyShades(palettes: PaletteColor[][]): Map<ColorFamily, string> {
+  const acc = new Map<ColorFamily, { w: number; lab: Lab }>()
+  for (const palette of palettes)
+    for (const p of palette) {
+      const lab = hexToLab(p.hex)
+      const f = familyOf(lab)
+      const a = acc.get(f) ?? { w: 0, lab: [0, 0, 0] as Lab }
+      a.w += p.share
+      a.lab = [a.lab[0] + lab[0] * p.share, a.lab[1] + lab[1] * p.share, a.lab[2] + lab[2] * p.share]
+      acc.set(f, a)
+    }
+  const out = new Map<ColorFamily, string>()
+  for (const [f, { w, lab }] of acc) if (w > 0) out.set(f, rgbToHex(...oklabToRgb([lab[0] / w, lab[1] / w, lab[2] / w])))
+  return out
+}

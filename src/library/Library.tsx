@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import type { BoardApp } from '../app/useBoardApp'
 import type { Asset } from '../shared/types'
 import { groupAssets, type GroupBy } from './group'
 import { SearchIcon } from '../ui/icons'
+import { ContextMenu, type MenuItem } from '../ui/ContextMenu'
 
 const TABS: [GroupBy, string][] = [
   ['category', 'Category'],
@@ -22,7 +23,7 @@ const loadGroupBy = (): GroupBy => {
 }
 
 /** "All images" view: every image across all boards, newest first, stacked into sections. Sidebar filters hide non-matches. */
-export function Library({ app, onDropData }: { app: BoardApp; onDropData: (dt: DataTransfer) => void }) {
+export function Library({ app, onDropData, onDelete }: { app: BoardApp; onDropData: (dt: DataTransfer) => void; onDelete: (ids: string[]) => void }) {
   const { assets, urls, categories, librarySelection: selected, setLibrarySelection: setSelected } = app
   const [groupBy, setGroupBy] = useState<GroupBy>(loadGroupBy)
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
@@ -54,12 +55,69 @@ export function Library({ app, onDropData }: { app: BoardApp; onDropData: (dt: D
     }
   }
   const [openStack, setOpenStack] = useState('')
+
+  // ---- bulk select: drag a box on empty space (Shift adds to the selection); right-click for Export / Select all / Delete ----
+  const root = useRef<HTMLDivElement>(null)
+  const band = useRef<{ x: number; y: number; base: string[]; moved: boolean } | null>(null)
+  const justDragged = useRef(false)
+  const [box, setBox] = useState<{ x: number; y: number; w: number; h: number } | null>(null)
+  const [ctx, setCtx] = useState<{ x: number; y: number } | null>(null)
+  const onBandDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0 || (e.target as HTMLElement).closest('button, input, label, a, select')) return
+    band.current = { x: e.clientX, y: e.clientY, base: e.shiftKey ? selected : [], moved: false }
+    e.currentTarget.setPointerCapture(e.pointerId)
+  }
+  const onBandMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const b = band.current
+    if (!b) return
+    const w = Math.abs(e.clientX - b.x)
+    const h = Math.abs(e.clientY - b.y)
+    if (!b.moved && w + h < 6) return
+    b.moved = true
+    const x = Math.min(e.clientX, b.x)
+    const y = Math.min(e.clientY, b.y)
+    setBox({ x, y, w, h })
+    const hit: string[] = []
+    root.current?.querySelectorAll<HTMLElement>('[data-aid]').forEach((el) => {
+      const r = el.getBoundingClientRect()
+      if (r.left < x + w && r.right > x && r.top < y + h && r.bottom > y) hit.push(el.dataset.aid!)
+    })
+    const next = [...new Set([...b.base, ...hit])]
+    if (next.length !== selected.length || next.some((id) => !selected.includes(id))) setSelected(next)
+  }
+  const onBandUp = () => {
+    justDragged.current = !!band.current?.moved
+    band.current = null
+    setBox(null)
+  }
+  const ctxItems: (MenuItem | 'sep')[] = [
+    { label: `Export as JPEG${selected.length > 1 ? `s (${selected.length})` : ''}`, disabled: !selected.length, run: () => void app.exportJpeg(selected) },
+    'sep',
+    { label: 'Select All', run: () => setSelected(ranked.map((a) => a.id)) },
+    { label: 'Select None', disabled: !selected.length, run: () => setSelected([]) },
+    'sep',
+    { label: 'Delete…', keys: 'Del', disabled: !selected.length, run: () => onDelete(selected) },
+  ]
   const selectGroup = (items: Asset[]) => setSelected(items.map((a) => a.id))
 
   return (
     <div
       className="library"
-      onClick={() => setSelected([])}
+      ref={root}
+      onPointerDown={onBandDown}
+      onPointerMove={onBandMove}
+      onPointerUp={onBandUp}
+      onPointerCancel={onBandUp}
+      onContextMenu={(e) => {
+        e.preventDefault()
+        const cell = (e.target as HTMLElement).closest<HTMLElement>('[data-aid]')
+        if (cell && !selected.includes(cell.dataset.aid!)) setSelected([cell.dataset.aid!])
+        setCtx({ x: e.clientX, y: e.clientY })
+      }}
+      onClick={() => {
+        if (justDragged.current) justDragged.current = false
+        else setSelected([])
+      }}
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => {
         e.preventDefault()
@@ -122,7 +180,7 @@ export function Library({ app, onDropData }: { app: BoardApp; onDropData: (dt: D
               </div>
               <div className="grid">
                 {g.items.map((a) => (
-                  <button key={a.id} className={'cell' + (selected.includes(a.id) ? ' selected' : '')} onClick={(e) => click(e, a.id)} aria-pressed={selected.includes(a.id)} style={{ aspectRatio: `${a.width} / ${a.height}` }}>
+                  <button key={a.id} data-aid={a.id} className={'cell' + (selected.includes(a.id) ? ' selected' : '')} onClick={(e) => click(e, a.id)} aria-pressed={selected.includes(a.id)} style={{ aspectRatio: `${a.width} / ${a.height}` }}>
                     {urls[a.id] && <img src={urls[a.id]} alt="" draggable={false} loading="lazy" />}
                   </button>
                 ))}
@@ -149,6 +207,7 @@ export function Library({ app, onDropData }: { app: BoardApp; onDropData: (dt: D
                 {g.items.map((a) => (
                   <button
                     key={a.id}
+                    data-aid={a.id}
                     className={'cell' + (selected.includes(a.id) ? ' selected' : '')}
                     onClick={(e) => click(e, a.id)}
                     aria-pressed={selected.includes(a.id)}
@@ -165,6 +224,8 @@ export function Library({ app, onDropData }: { app: BoardApp; onDropData: (dt: D
           </section>
         ))
       )}
+      {box && <div className="marquee fixed" style={{ left: box.x, top: box.y, width: box.w, height: box.h }} />}
+      {ctx && <ContextMenu x={ctx.x} y={ctx.y} items={ctxItems} onClose={() => setCtx(null)} />}
     </div>
   )
 }

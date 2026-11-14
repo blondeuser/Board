@@ -2,6 +2,7 @@ import { memo, useEffect, useRef, useState, type CSSProperties, type RefObject }
 import type { Connection, Placement, ShapeKind, ViewState } from '../shared/types'
 import { GRID, clampZoom, screenToWorld, snapDelta, zoomAt } from './viewport'
 import { connectorPath } from './connector'
+import { LinkIcon } from '../ui/icons'
 import { BENTO_COLUMNS, BENTO_CELL, BENTO_GAP } from './bento'
 
 const BENTO_PAD = 40
@@ -22,6 +23,8 @@ interface Props {
   /** Curved lines between cards; drawn in free layout only. */
   connections: Connection[]
   urls: Record<string, string>
+  /** Page address per asset id, for images that came from a link or a site import (shows the link badge). */
+  links: Record<string, string>
   selection: string[]
   /** Bento mode: cards are auto-placed, so moving/resizing is off. */
   locked: boolean
@@ -113,6 +116,11 @@ export function Canvas(props: Props) {
     const p = live.current
     const target = e.target as HTMLElement
     if (target.closest('textarea')) return // editing a note: let the text field handle it
+    const badge = target.closest<HTMLElement>('[data-link]')
+    if (badge) {
+      window.open(badge.dataset.link, '_blank', 'noopener')
+      return
+    }
     const itemEl = target.closest<HTMLElement>('[data-pid]')
     const panning = e.button === 1 || space.current
     e.currentTarget.setPointerCapture(e.pointerId)
@@ -275,6 +283,7 @@ export function Canvas(props: Props) {
             key={p.id}
             p={p}
             url={urls[p.assetId]}
+            href={props.links[p.assetId]}
             selected={selection.includes(p.id)}
             dimmed={props.dimmed(p)}
             locked={props.locked}
@@ -303,6 +312,7 @@ const SHAPES: Record<ShapeKind, React.ReactNode> = {
 interface ItemProps {
   p: Placement
   url?: string
+  href?: string
   selected: boolean
   dimmed: boolean
   locked: boolean
@@ -310,7 +320,7 @@ interface ItemProps {
   onEditNote: (id: string, text: string) => void
 }
 
-const Item = memo(function Item({ p, url, selected, dimmed, locked, editing, onEditNote }: ItemProps) {
+const Item = memo(function Item({ p, url, href, selected, dimmed, locked, editing, onEditNote }: ItemProps) {
   const note = p.kind === 'note'
   const shape = p.kind === 'shape'
   return (
@@ -339,6 +349,11 @@ const Item = memo(function Item({ p, url, selected, dimmed, locked, editing, onE
         )
       ) : (
         url && <img src={url} alt="" draggable={false} />
+      )}
+      {href && (
+        <span className="link-badge" data-link={href} title={`Open ${href}`}>
+          <LinkIcon />
+        </span>
       )}
       {selected && !locked && <span className="handle" data-handle />}
     </div>

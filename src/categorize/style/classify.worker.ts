@@ -1,11 +1,12 @@
 /// <reference lib="webworker" />
 import { AutoTokenizer, AutoProcessor, CLIPTextModelWithProjection, CLIPVisionModelWithProjection, SiglipTextModel, SiglipVisionModel, RawImage } from '@huggingface/transformers'
-import { TYPE_LABELS, type Scored } from './labels'
+import { SPACE_LABELS, TYPE_LABELS, type Scored } from './labels'
 import { MODEL } from './model'
 
 // Images never leave the machine; only the model files are downloaded (once, then cached by the browser).
 const SIGLIP = MODEL.includes('siglip')
 const PROMPTS = TYPE_LABELS.map((t) => t.prompt)
+const SPACE_PROMPTS = SPACE_LABELS.map((t) => t.prompt)
 const LOGIT_SCALE = 100 // softmax temperature for the type scores
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -15,6 +16,7 @@ interface Models {
   processor: any
   visionModel: any
   promptEmbeddings: Float32Array[]
+  spaceEmbeddings: Float32Array[]
 }
 let models: Promise<Models> | null = null
 
@@ -48,8 +50,10 @@ const load = (): Promise<Models> =>
       AutoProcessor.from_pretrained(MODEL),
       (SIGLIP ? SiglipVisionModel : CLIPVisionModelWithProjection).from_pretrained(MODEL, opts),
     ])
-    const promptEmbeddings = await embedTexts({ tokenizer, textModel }, PROMPTS)
-    return { tokenizer, textModel, processor, visionModel, promptEmbeddings }
+    const all = await embedTexts({ tokenizer, textModel }, [...PROMPTS, ...SPACE_PROMPTS])
+    const promptEmbeddings = all.slice(0, PROMPTS.length)
+    const spaceEmbeddings = all.slice(PROMPTS.length)
+    return { tokenizer, textModel, processor, visionModel, promptEmbeddings, spaceEmbeddings }
   })().catch((e) => {
     models = null // allow a retry (e.g. offline the first time)
     throw e
@@ -70,12 +74,20 @@ self.onmessage = async (e: MessageEvent<In>) => {
     const out = await m.visionModel(await m.processor(image))
     const embedding = normalize(Float32Array.from((SIGLIP ? out.pooler_output : out.image_embeds).data))
     // Zero-shot type scores: softmax over cosine similarity to each type prompt.
-    const logits = m.promptEmbeddings.map((p) => LOGIT_SCALE * dot(embedding, p))
-    const max = Math.max(...logits)
-    const exps = logits.map((l) => Math.exp(l - max))
-    const sum = exps.reduce((s, x) => s + x, 0)
-    const scores: Scored[] = PROMPTS.map((label, i) => ({ label, score: exps[i] / sum }))
-    self.postMessage({ type: 'image', id: msg.id, embedding, scores })
+    const softmax = (prompts: string[], embs: Float32Array[]): Scored[] => {
+      const logits = embs.map((p) => LOGIT_SCALE * dot(embedding, p))
+      const max = Math.max(...logits)
+      const exps = logits.map((l) => Math.exp(l - max))
+      const sum = exps.reduce((s, x) => s + x, 0)
+      return prompts.map((label, i) => ({ label, score: exps[i] / sum }))
+    }
+    const scores = softmax(PROMPTS, m.promptEmbeddings)
+    // Finer space tags: one softmax per parent group (architecture / interior), so the groups don't compete.
+    const detail = (['architecture', 'interior'] as const).flatMap((parent) => {
+      const idx = SPACE_LABELS.flatMap((l, i) => (l.parent === parent ? [i] : []))
+      return softmax(idx.map((i) => SPACE_PROMPTS[i]), idx.map((i) => m.spaceEmbeddings[i]))
+    })
+    self.postMessage({ type: 'image', id: msg.id, embedding, scores, detail })
   } catch (err) {
     self.postMessage({ type: 'error', id: msg.id, message: err instanceof Error ? err.message : String(err) })
   }

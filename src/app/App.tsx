@@ -152,6 +152,11 @@ export function App() {
 
   const bento = app.board?.mode === 'bento'
   const { boardPlacements, assets } = app
+  const links = useMemo(() => {
+    const out: Record<string, string> = {}
+    for (const a of Object.values(assets)) if (a.source?.url && /^https?:\/\//i.test(a.source.url)) out[a.id] = a.source.url
+    return out
+  }, [assets])
   const bentoItems = useMemo(
     () => boardPlacements.filter((p) => p.kind !== 'shape').map((p) => ({ id: p.id, x: p.x, y: p.y, w: p.w, h: p.h, kind: p.kind === 'note' ? 'note' as const : 'image' as const, textLength: p.text?.length })),
     [boardPlacements],
@@ -191,6 +196,7 @@ export function App() {
     setCtx({ x, y })
   }
   const ids = selectedPlacements.map((p) => p.id)
+  const exportIds = [...new Set(selectedPlacements.filter((p) => p.assetId).map((p) => p.assetId))]
   const n = ids.length
   const mod = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl+'
   const free = !bento
@@ -199,6 +205,8 @@ export function App() {
     { label: 'Copy', keys: `${mod}C`, disabled: !n, run: () => app.copyCards(ids) },
     { label: 'Paste', keys: `${mod}V`, disabled: !app.hasClipboard, run: () => ctx && app.pasteCards(worldPointAt(ctx.x, ctx.y)) },
     { label: 'Delete', keys: 'Del', disabled: !n, run: () => app.removeFromBoard(ids) },
+    'sep',
+    { label: `Export as JPEG${exportIds.length > 1 ? `s (${exportIds.length})` : ''}`, disabled: !exportIds.length, run: () => void app.exportJpeg(exportIds) },
     'sep',
     {
       label: 'Arrange', disabled: !n || !free,
@@ -239,7 +247,7 @@ export function App() {
       <main>
         {app.screen === 'library' ? (
           <>
-            <Library app={app} onDropData={(dt) => void ingest(dt)} />
+            <Library app={app} onDropData={(dt) => void ingest(dt)} onDelete={(ids) => confirmDelete(app, ids)} />
             <Inspector
               app={app}
               library
@@ -264,6 +272,7 @@ export function App() {
           onStartEdit={app.setEditingId}
           onEditNote={app.editNote}
           urls={app.urls}
+          links={links}
           selection={app.selection}
           dimmed={(p) => filtering && (p.kind === 'note' || p.kind === 'shape' || !app.matches(p.assetId))}
           onView={app.setView}
