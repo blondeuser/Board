@@ -85,6 +85,9 @@ export const exportBo = (boardId: string, path: string) => busy('Exporting board
 /** Rust opens a .bo as a new board (reusing images by hash); the UI then reloads the library. Errors are user-facing messages. */
 export const importBoFile = (path: string) => busy('Opening board', () => invoke<{ boardId: string; name: string; newImages: number }>('import_bo', { path }))
 
+/** A .bo dropped on the window (no file path in the webview): the bytes go to Rust, same import as importBoFile. */
+export const importBoBytes = (bytes: Uint8Array) => busy('Opening board', () => invoke<{ boardId: string; name: string; newImages: number }>('import_bo_bytes', bytes))
+
 /** Tells the status bar (ui/BoStatusBar.tsx) a long .bo job started / ended; Rust sends the 'bo-progress' events in between. */
 async function busy<T>(label: string, job: () => Promise<T>): Promise<T> {
   window.dispatchEvent(new CustomEvent('bo-busy', { detail: label }))

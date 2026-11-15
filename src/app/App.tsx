@@ -15,6 +15,7 @@ import { Inspector } from '../ui/Inspector'
 import type { ShapeKind } from '../shared/types'
 import { Library } from '../library/Library'
 import { PinterestButton } from '../ui/PinterestHandle'
+import { isDesktop } from '../shared/desktop'
 import { BentoIcon, DiamondIcon, EllipseIcon, FitIcon, LinkIcon, RectIcon, TriangleIcon, MinusIcon, NoteIcon, PenIcon, EraserIcon, MouseIcon, TagIcon, TextIcon, PlusIcon } from '../ui/icons'
 
 function confirmDelete(app: BoardApp, assetIds: string[]) {
@@ -93,6 +94,9 @@ export function App() {
     // In the library there is no board to place on: the images are just added to the library.
     const at = () => (live.current.screen === 'library' ? null : worldPointAt(clientX, clientY))
     try {
+      // A dropped board file opens as a new board (desktop; the browser dev mode uses File > Open).
+      const bo = [...dt.files].find((f) => f.name.toLowerCase().endsWith('.bo'))
+      if (bo) { await (isDesktop() ? live.current.openBo(bo) : live.current.importBo(bo)); return }
       const files = [...dt.files].filter((f) => f.type.startsWith('image/'))
       const url = dt.getData('text/uri-list').split('\n').find((l) => l && !l.startsWith('#'))?.trim() ?? dt.getData('text/plain').trim()
       if (!files.length && isWebUrl(url)) {

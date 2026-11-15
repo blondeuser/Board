@@ -41,6 +41,7 @@ On Mac the UI runs in WKWebView (Safari engine) instead of WebView2 (Chromium). 
 - Pen / trackpad input (see `PEN_INPUT.md`): pressure, pinch-zoom and two-finger pan behave differently in Safari.
 - Drag and drop of images from Finder and from Safari/Chrome (`dragDropEnabled: false` → HTML5 drag-drop path).
 - Canvas performance and any CSS that only works in Chromium.
+- `.bo` files: `src-tauri/Info.plist` declares the type (`com.remstudio.remind.board`) and the paper icon (`icons/bo-file.icns`, copied by `bundle.macOS.files`). Double-click / `open -a` arrives as `RunEvent::Opened` (`lib.rs`, kept in `PENDING_BO`, then the UI's `open-bo` listener). A `.bo` dropped on the window goes through `import_bo_bytes`. Finder caches icons: if the old icon shows, move the app to /Applications and run `killall Finder`.
 - Optional later: a native macOS app menu (REMind / File / Edit / View) so Cmd+C, Cmd+V, Cmd+Q work as Mac users expect.
 
 ### 4. Build — on the MacBook M3 Pro

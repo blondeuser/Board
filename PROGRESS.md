@@ -2,7 +2,7 @@
 
 Living status. **Update at the end of every work session.** Rules live in `CLAUDE.md`, business logic in `MEMORY.md`.
 
-_Last updated: 2026-11-15 (v0.7.1 + Mac port)_
+_Last updated: 2026-11-15 (Mac: .bo drop, Finder open, icon)_
 
 ## Status
 
@@ -178,6 +178,11 @@ _Last updated: 2026-11-15 (v0.7.1 + Mac port)_
 | 2026-11-14 | Imported images carry `Asset.source` (link, title, categories, credit, details) instead of auto-creating custom categories | 68 award categories per year would flood the sidebar; source data stays searchable and groupable (Award tab) and keeps photographer credits |
 
 ## Log
+
+### 2026-11-15 (Mac: .bo drop, Finder open, file icon)
+- **Reported on the Mac:** dropping a .bo on the window did nothing, .bo files had no icon, no status bar when opening a .bo. **Cause:** drop was never implemented for `.bo` on any OS (`ingest` in `App.tsx` only took images and URLs; with no handler there was also no `bo-busy` event, hence no pill). The Windows hook (`hooks.nsh`) has no Mac equivalent, and macOS passes a double-clicked file as a `RunEvent::Opened` event, not as an argument.
+- **Fix:** `ingest` now sends a dropped `.bo` to `openBo(file)`; on desktop the bytes go to the new Rust command `import_bo_bytes` (raw body → temp file in the config folder → same import as `import_bo`, split into `import_bo_at`), wrapped in `busy()` so the progress pill shows. `lib.rs` now `.build().run()` and handles `RunEvent::Opened` (macOS): the path goes into a static `PENDING_BO` (not `Store`: on a cold start the event arrives before the state exists) and an `open-bo` event; `take_launch_file` returns either; `useBoardApp.ts` listens for `open-bo` and also checks once after attaching. New `src-tauri/Info.plist` (merged by Tauri): document type + exported type `com.remstudio.remind.board` (extension `bo`, rank Owner) with the paper icon `src-tauri/icons/bo-file.icns` (made from `bo-file-256.png` with `sips` + `iconutil`; 512 px size is upscaled), shipped through `bundle.macOS.files`.
+- **Checked on the Mac:** typecheck, 82 TS tests; built `.app` has the document/exported types and `bo-file.icns`, `mdls` reports the type for a `.bo`; `open -a REMind.app x.bo` imports the board both on a cold start and into a running app (counted boards in `board.sqlite`). My test imports (3 "Fixture" boards, a 1px test image, a "Warm" tag) were removed from the library afterwards. **Not checked:** the actual Finder icon (Finder caches icons; may need `killall Finder` or a reinstall to the Applications folder), dropping a file from Finder onto the window (needs hand test; WKWebView with `dragDropEnabled: false` should deliver `dataTransfer.files`), the status pill by eye (File > Open on the Mac), Windows build after the `lib.rs` change. The Mac `.icns` looks soft at large sizes.
 
 ### 2026-11-15 (Mac: v0.7.1 build)
 - Pulled 0.7.1 (merge `196184d`; only the "Last updated" line conflicted) and rebuilt on the MacBook: `REMind.app` (242 MiB) and `REMind_0.7.1_aarch64.dmg` (175.3 MiB), ad-hoc signed. Typecheck, 82 TS tests, 38 cargo tests pass. Not launched or hand-tested; the 0.7.1 Pinterest panel fixes are untested on WKWebView. Not committed.

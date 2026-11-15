@@ -681,12 +681,12 @@ export function useBoardApp() {
   }, [notify, updateAssets, selectBoard])
 
   /** Desktop: pick a .bo and let Rust open it as a new board, then reload the library state. */
-  const openBo = useCallback(async (known?: string) => {
+  const openBo = useCallback(async (known?: string | File) => {
     try {
       const path = known ?? (await (await import('@tauri-apps/plugin-dialog')).open({ multiple: false, filters: [{ name: 'Board file', extensions: ['bo'] }] }))
-      if (typeof path !== 'string') return
-      const { importBoFile, loadAll } = await import('../backend/api')
-      const done = await importBoFile(path)
+      if (typeof path !== 'string' && !(path instanceof File)) return
+      const { importBoFile, importBoBytes, loadAll } = await import('../backend/api')
+      const done = typeof path === 'string' ? await importBoFile(path) : await importBoBytes(new Uint8Array(await path.arrayBuffer()))
       const lib = await loadAll()
       const map = Object.fromEntries(lib.assets.map((a) => [a.id, { ...a, embedding: undefined } as Asset]))
       latest.current.assets = map
@@ -705,6 +705,21 @@ export function useBoardApp() {
   useEffect(() => {
     if (!ready || !isDesktop()) return
     void import('@tauri-apps/api/core').then(({ invoke }) => invoke<string | null>('take_launch_file')).then((p) => { if (p) void openBo(p) })
+  }, [ready, openBo])
+
+  // macOS: a .bo opened from Finder / the Dock while the app is already running (Rust emits 'open-bo' and keeps the path).
+  useEffect(() => {
+    if (!ready || !isDesktop()) return
+    let off: (() => void) | undefined
+    let gone = false
+    void Promise.all([import('@tauri-apps/api/event'), import('@tauri-apps/api/core')]).then(([{ listen }, { invoke }]) =>
+      listen('open-bo', () => void invoke<string | null>('take_launch_file').then((p) => { if (p) void openBo(p) })).then((u) => {
+        gone ? u() : (off = u)
+        // The event may have fired before this listener existed (cold start from Finder): pick up the stored path now.
+        if (!gone) void invoke<string | null>('take_launch_file').then((p) => { if (p) void openBo(p) })
+      }),
+    )
+    return () => { gone = true; off?.() }
   }, [ready, openBo])
 
   // ---- auto type detection (on-device CLIP, runs in a worker) ----

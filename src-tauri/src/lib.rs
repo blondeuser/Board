@@ -222,6 +222,22 @@ async fn export_bo(app: tauri::AppHandle, s: State<'_, Store>, board_id: String,
 /// categories match by name. Everything is decoded before anything is written. Returns { boardId, name, newImages }.
 #[tauri::command]
 async fn import_bo(app: tauri::AppHandle, s: State<'_, Store>, path: String) -> Res<Value> {
+    import_bo_at(&app, &s, &path)
+}
+
+/// A .bo dropped on the window: the webview has no file path, so the bytes (raw body) go to a temp file and through the same import.
+#[tauri::command]
+async fn import_bo_bytes(app: tauri::AppHandle, s: State<'_, Store>, req: Request<'_>) -> Res<Value> {
+    let tauri::ipc::InvokeBody::Raw(body) = req.body() else { return Err("expected a raw body".into()) };
+    let tmp = s.config_dir.join(".drop.bo.tmp");
+    std::fs::write(&tmp, body).map_err(|e| e.to_string())?;
+    let out = import_bo_at(&app, &s, &tmp.to_string_lossy());
+    let _ = std::fs::remove_file(&tmp);
+    out
+}
+
+fn import_bo_at(app: &tauri::AppHandle, s: &Store, path: &str) -> Res<Value> {
+    let path = path.to_string();
     let content = bo::read(std::io::BufReader::new(std::fs::File::open(&path).map_err(|_| "Could not open that file.".to_string())?))?;
     let all = s.db()?.load_all()?;
     let lib_assets = all["assets"].as_array().cloned().unwrap_or_default();
@@ -284,7 +300,12 @@ async fn import_bo(app: tauri::AppHandle, s: State<'_, Store>, path: String) -> 
 
 /// The .bo this process was started with, once (then None).
 #[tauri::command]
-fn take_launch_file(s: State<Store>) -> Option<String> { s.launch_file.lock().ok()?.take() }
+fn take_launch_file(s: State<Store>) -> Option<String> {
+    s.launch_file.lock().ok()?.take().or_else(|| PENDING_BO.lock().ok()?.take())
+}
+
+/// A .bo macOS asked us to open; kept here (not in `Store`) because the event can arrive before the app state exists.
+static PENDING_BO: Mutex<Option<String>> = Mutex::new(None);
 
 /// Width of the Pinterest panel in logical pixels.
 static PANEL_W: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(480);
@@ -510,9 +531,19 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             load_all, save_boards, save_assets, save_placements, save_connections, save_categories, delete_board,
             delete_assets, delete_placements, delete_connections, delete_category, clear_all, add_asset, save_thumb, import_image,
-            asset_paths, meta_get, meta_set, analyze_asset, search_meaning, export_bo, import_bo, take_launch_file, toggle_pinterest, set_pinterest_width,
+            asset_paths, meta_get, meta_set, analyze_asset, search_meaning, export_bo, import_bo, import_bo_bytes, take_launch_file, toggle_pinterest, set_pinterest_width,
             storage_info, move_library, cancel_move, delete_old_library, set_cache_dir, clear_cache, locate_library, use_default_library
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running REMind");
+        .build(tauri::generate_context!())
+        .expect("error while building REMind")
+        .run(|_app, _event| {
+            // macOS hands a double-clicked / dragged-onto-the-Dock .bo over as an event, not as a command-line argument.
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Opened { urls } = _event {
+                if let Some(path) = urls.iter().find_map(|u| u.to_file_path().ok()).filter(|p| p.extension().is_some_and(|e| e.eq_ignore_ascii_case("bo"))) {
+                    if let Ok(mut l) = PENDING_BO.lock() { *l = Some(path.to_string_lossy().into_owned()) }
+                    let _ = _app.emit("open-bo", ());
+                }
+            }
+        });
 }

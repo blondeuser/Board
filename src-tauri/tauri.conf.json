@@ -45,7 +45,10 @@
     ],
     "macOS": {
       "signingIdentity": "-",
-      "minimumSystemVersion": "13.0"
+      "minimumSystemVersion": "13.0",
+      "files": {
+        "Resources/bo-file.icns": "icons/bo-file.icns"
+      }
     },
     "publisher": "REM Studio",
     "copyright": "REM Studio",
