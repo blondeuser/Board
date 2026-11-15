@@ -6,6 +6,8 @@ import '@fontsource/instrument-serif/latin-400-italic.css'
 import './styles.css'
 import { PinterestHandle } from '../ui/PinterestHandle'
 import { BoStatusBar } from '../ui/BoStatusBar'
+import { Settings } from '../ui/Settings'
+import { LibraryMissing } from '../ui/LibraryMissing'
 
 // Pinterest spike (docs/PINTEREST.md step 0): log what a drop carries, dev builds only.
 if (import.meta.env.DEV) {
@@ -21,5 +23,7 @@ createRoot(document.getElementById('root')!).render(
     <App />
     <PinterestHandle />
     <BoStatusBar />
+    <Settings />
+    <LibraryMissing />
   </StrictMode>,
 )

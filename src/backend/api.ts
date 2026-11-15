@@ -93,3 +93,27 @@ async function busy<T>(label: string, job: () => Promise<T>): Promise<T> {
 
 /** Search by meaning in Rust: [asset id, score], best first. */
 export const searchMeaning = (prompt: string) => invoke<[string, number][]>('search_meaning', { prompt })
+
+// ---- Storage settings (docs/STORAGE.md): where the library and cache live ----
+export type StorageInfo = {
+  library: string; libraryBytes: number; images: number
+  cache: string; thumbsBytes: number
+  previous: [string, number] | null
+  missing: string | null
+}
+export type StorageProgress = { phase: 'copy' | 'verify' | 'thumbs'; done: number; total: number }
+export const storageInfo = () => invoke<StorageInfo>('storage_info')
+/** Copies, verifies, switches and restarts the app. Rejects with a user-facing message. */
+export const moveLibrary = (path: string) => invoke<void>('move_library', { path })
+export const cancelMove = () => invoke<void>('cancel_move')
+export const deleteOldLibrary = () => invoke<void>('delete_old_library')
+/** null = default folder. Restarts the app. */
+export const setCacheDir = (path: string | null) => invoke<void>('set_cache_dir', { path })
+export const clearCache = () => invoke<number>('clear_cache')
+export const locateLibrary = (path: string) => invoke<void>('locate_library', { path })
+export const useDefaultLibrary = () => invoke<void>('use_default_library')
+export async function onStorageProgress(fn: (p: StorageProgress) => void): Promise<() => void> {
+  const { listen } = await import('@tauri-apps/api/event')
+  const offs = await Promise.all(['storage-progress', 'thumbs-progress'].map((n) => listen<StorageProgress>(n, (e) => fn(e.payload))))
+  return () => offs.forEach((o) => o())
+}

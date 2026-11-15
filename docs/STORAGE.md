@@ -2,7 +2,7 @@
 
 Desktop only. Lets me move the heavy data (originals + database) to a drive I choose, keeps rebuildable data (thumbnails,
 WebView cache) in a separate cache folder that can be cleared, and adds a Settings window to control both. Agreed in
-chat 2026-11-15; **plan only, no code yet**.
+chat 2026-11-15; **phase 1 built 2026-11-15** (not yet tried with a real library on a second drive). Differences from the plan: originals are named by asset id, not hash, so the copy is verified by hashing source and copy; no `windows-sys`/`libc` yet, so only `\server` paths are refused and free space is not checked (a failed copy is caught by the verify step and cleaned up); no lock file; *Also clear WebView cache* is not built (the window exists before `setup`, so it needs a pre-start hook). The default library keeps its `library/originals` folder; any other folder uses `originals`.
 
 ## Why
 

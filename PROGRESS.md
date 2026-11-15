@@ -2,7 +2,7 @@
 
 Living status. **Update at the end of every work session.** Rules live in `CLAUDE.md`, business logic in `MEMORY.md`.
 
-_Last updated: 2026-11-15 (Pinterest docked panel, .bo progress bar, partial eraser)_
+_Last updated: 2026-11-15 (v0.6.0: storage location + cache + Settings)_
 
 ## Status
 
@@ -15,7 +15,7 @@ _Last updated: 2026-11-15 (Pinterest docked panel, .bo progress bar, partial era
 
 ## Resume here (next session)
 
-**Planned 2026-11-15: library location + cache + Settings** (`docs/STORAGE.md`, roadmap §3). Edit → Settings → Storage: move the whole library (originals + database) to another local drive (copy, verify, switch, old folder kept), separate cache folder for thumbnails with *Clear cache*, missing-library dialog. Not started. Before coding: approve `windows-sys` + `libc` (drive type, free space) or decide to skip those checks. Then Rust (`settings.rs`, `storage.rs`, `files.rs` two roots), tests, UI, version `0.6.0`.
+**Built 2026-11-15: library location + cache + Settings** (`docs/STORAGE.md`, roadmap §3, phase 1). Edit → Settings… (Ctrl+,) → Storage: Change library (copy, verify, switch, restart), Delete old library, Change/Reset cache, Clear cache (rebuilds thumbnails), missing-library dialog. **Next: try it** with a real library (move C: → another drive, restart, check boards/search, unplug test, Clear cache), then decide on `windows-sys` + `libc` (drive type, free space), then version `0.6.0` and an installer.
 
 **Planned 2026-11-15: Pinterest inside REMind** (`docs/PINTEREST.md`). **Built so far: the docked panel (step 5 done early, at my request)**: a toolbar Pinterest button and File > Pinterest Panel toggle a child webview inside the main window (resizable by dragging its left edge, × to close). **Next: step 0 spike** (drag a pin onto the board in `tauri dev`; the `[drop]` console log shows the payload; record it in `docs/PINTEREST.md` §9, Mac too), then steps 2-3 (URL drop → download → import). Ask before step 6 (bulk grab, remote capability).
 
@@ -81,7 +81,7 @@ _Last updated: 2026-11-15 (Pinterest docked panel, .bo progress bar, partial era
 - [x] `.bo` import: sidebar upload button; dedupes by hash into the library, matches categories by name, always creates a new board. Embeddings are re-computed by the normal backfill
 - [ ] `.bo` file association + icon on Windows and macOS (Tauri bundle config)
 - [ ] Full-library backup/restore (later; same container idea)
-- [ ] **Storage location (planned 2026-11-15, `docs/STORAGE.md`):** [ ] `settings.json` + library marker, [ ] thumbnails to a separate cache folder (one-time move), [ ] Edit menu + Settings → Storage tab with sizes, [ ] move library (local drives only; backup API + copy + re-hash verify + restart; old folder kept, *Delete old library*), [ ] move cache / reset, [ ] Clear cache + background thumbnail rebuild (+ WebView cache on next start), [ ] missing-library dialog (Retry / Locate… / default), [ ] lock file against two PCs; later: [ ] open/switch libraries, [ ] shrink originals (Max 4K/2K)
+- [~] **Storage location (phase 1 built 2026-11-15, untested on a real move; `docs/STORAGE.md`):** [ ] `settings.json` + library marker, [ ] thumbnails to a separate cache folder (one-time move), [ ] Edit menu + Settings → Storage tab with sizes, [ ] move library (local drives only; backup API + copy + re-hash verify + restart; old folder kept, *Delete old library*), [ ] move cache / reset, [ ] Clear cache + background thumbnail rebuild (+ WebView cache on next start), [ ] missing-library dialog (Retry / Locate… / default), [ ] lock file against two PCs; later: [ ] open/switch libraries, [ ] shrink originals (Max 4K/2K)
 
 ### 4. Auto-categorize
 - [x] Colour palette extraction + colour families
@@ -178,6 +178,9 @@ _Last updated: 2026-11-15 (Pinterest docked panel, .bo progress bar, partial era
 | 2026-11-14 | Imported images carry `Asset.source` (link, title, categories, credit, details) instead of auto-creating custom categories | 68 award categories per year would flood the sidebar; source data stays searchable and groupable (Award tab) and keeps photographer credits |
 
 ## Log
+
+### 2026-11-15 (library location, cache, Settings built)
+- Rust: `settings.rs` (settings.json, atomic, unknown keys kept), `storage.rs` (resolve paths, marker `remind-library.json`, target checks, move = SQLite backup + hashed file copy + integrity/row-count verify + switch, delete old library, cache move, one-time thumbnail move, clear + rebuild thumbnails), `Files` now has separate originals and thumbs roots (+ legacy thumbs fallback), asset-protocol scope widened at start-up, `Db::backup_to/integrity_ok/row_counts`, `rusqlite` feature `backup`. A `moving` flag makes every DB call fail during a copy. Commands: `storage_info`, `move_library`, `cancel_move`, `delete_old_library`, `set_cache_dir`, `clear_cache`, `locate_library`, `use_default_library`; events `storage-progress`, `thumbs-progress`. UI: `Settings.tsx`, `LibraryMissing.tsx`, Edit menu. 4 new cargo tests (move + delete old, refused targets + cancel, missing library, thumbnails) and 1 settings test pass; typecheck clean; the app starts and writes the marker + cache folder. Not done: WebView-cache clear, drive-type/free-space checks, lock file, Delete-old confirm names the size only. Not tried with real images (the dev library was empty). Not committed.
 
 ### 2026-11-15 (plan: library location, cache, Settings)
 - Asked where the app stores data: library + DB in `%APPDATA%\com.remstudio.remind\` (`board.sqlite`, `library\originals`, `library\thumbs`), WebView2 data in `%LOCALAPPDATA%\com.remstudio.remind\`. Planned Edit → Settings → Storage: movable library (local drives only, copy + verify + switch), separate cache folder for thumbnails with Clear cache, missing-library dialog; open/switch libraries and shrink-originals later. Plan in `docs/STORAGE.md`. Docs only, no code.

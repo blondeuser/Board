@@ -1,27 +1,33 @@
-// Library files on disk: <root>/originals/<id>.<ext>, <root>/thumbs/<id>.<ext>. Atomic writes (.tmp + rename).
+// Library files on disk: <originals>/<id>.<ext> in the library folder, <thumbs>/<id>.<ext> in the cache folder (docs/STORAGE.md).
+// Atomic writes (.tmp + rename).
 // shortcut: named by asset id; switch to <hash> if files should be shared across duplicates.
 use std::path::{Path, PathBuf};
 
-pub struct Files(pub PathBuf);
+pub struct Files {
+    pub originals: PathBuf,
+    pub thumbs: PathBuf,
+    /// Pre-0.6 thumbnail folder (inside the library); read as a fallback until its files have moved to `thumbs`.
+    pub legacy_thumbs: Option<PathBuf>,
+}
 
 impl Files {
     pub fn original(&self, id: &str, ext: &str) -> PathBuf {
-        self.0.join("originals").join(format!("{}.{}", safe(id), safe(ext)))
+        self.originals.join(format!("{}.{}", safe(id), safe(ext)))
     }
     pub fn thumb(&self, id: &str, ext: &str) -> PathBuf {
-        self.0.join("thumbs").join(format!("{}.{}", safe(id), safe(ext)))
+        self.thumbs.join(format!("{}.{}", safe(id), safe(ext)))
     }
 
     /// A file's path whatever its extension.
-    fn find(&self, dir: &str, id: &str) -> Option<PathBuf> {
+    fn find(dir: &Path, id: &str) -> Option<PathBuf> {
         let id = safe(id);
-        std::fs::read_dir(self.0.join(dir)).ok()?.flatten().map(|f| f.path()).find(|p| p.file_stem().is_some_and(|s| *s == *id))
+        std::fs::read_dir(dir).ok()?.flatten().map(|f| f.path()).find(|p| p.file_stem().is_some_and(|s| *s == *id))
     }
     pub fn find_original(&self, id: &str) -> Option<PathBuf> {
-        self.find("originals", id)
+        Self::find(&self.originals, id)
     }
     pub fn find_thumb(&self, id: &str) -> Option<PathBuf> {
-        self.find("thumbs", id)
+        Self::find(&self.thumbs, id).or_else(|| Self::find(self.legacy_thumbs.as_deref()?, id))
     }
 
     pub fn write(path: &Path, bytes: &[u8]) -> Result<(), String> {
@@ -34,14 +40,14 @@ impl Files {
 
     /// Removes an image's files; a missing file is fine.
     pub fn remove_asset(&self, id: &str) {
-        for dir in ["originals", "thumbs"] {
-            while let Some(p) = self.find(dir, id) {
+        let dirs = [Some(&self.originals), Some(&self.thumbs), self.legacy_thumbs.as_ref()];
+        for dir in dirs.into_iter().flatten() {
+            while let Some(p) = Self::find(dir, id) {
                 if std::fs::remove_file(p).is_err() { break }
             }
         }
     }
 }
-
 /// Ids and extensions come from the UI: keep only file-name-safe characters so they can't escape the library folder.
 fn safe(s: &str) -> String {
     s.chars().filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_').collect()
@@ -78,7 +84,7 @@ mod tests {
 
     #[test]
     fn ids_cannot_escape_the_library() {
-        let f = Files(PathBuf::from("lib"));
+        let f = Files { originals: PathBuf::from("lib").join("originals"), thumbs: PathBuf::from("lib").join("thumbs"), legacy_thumbs: None };
         let p = f.original("../../x", "jp/g");
         assert_eq!(p, PathBuf::from("lib").join("originals").join("x.jpg"));
     }
@@ -86,7 +92,7 @@ mod tests {
     #[test]
     fn write_and_remove() {
         let root = std::env::temp_dir().join(format!("remind-files-test-{}", std::process::id()));
-        let f = Files(root.clone());
+        let f = Files { originals: root.join("originals"), thumbs: root.join("thumbs"), legacy_thumbs: None };
         Files::write(&f.original("a1", "jpg"), b"o").unwrap();
         Files::write(&f.thumb("a1", "jpg"), b"t").unwrap();
         assert!(f.original("a1", "jpg").exists() && f.find_thumb("a1").is_some());

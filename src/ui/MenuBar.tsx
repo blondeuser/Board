@@ -84,6 +84,10 @@ export function MenuBar({ app, sidebarOpen, onToggleSidebar, onLitImport, view, 
       ],
     },
     {
+      title: 'Edit',
+      items: [{ label: 'Settings…', keys: `${mod},`, run: () => window.dispatchEvent(new Event('open-settings')) }],
+    },
+    {
       title: 'View',
       items: [
         { label: 'Freeform View', checked: view === 'free', run: () => onShowView('free') },

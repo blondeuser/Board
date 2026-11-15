@@ -6,12 +6,14 @@ mod color;
 mod db;
 mod files;
 mod import;
+mod settings;
+mod storage;
 
 use analyze::{Analyzer, Model, Scored, EMBEDDING_MODEL};
 use db::Db;
 use files::Files;
 use serde_json::Value;
-use std::{collections::HashMap, path::PathBuf, sync::Mutex};
+use std::{collections::HashMap, path::PathBuf, sync::{atomic::{AtomicBool, Ordering}, Mutex}};
 use tauri::{ipc::Request, Emitter, Manager, State, WebviewUrl};
 
 struct Store {
@@ -24,12 +26,21 @@ struct Store {
     index: Mutex<Option<HashMap<String, Vec<f32>>>>,
     /// A .bo path from the command line (double-click in Explorer); handed to the UI once.
     launch_file: Mutex<Option<String>>,
+    /// Where the library and cache live (docs/STORAGE.md), the settings file's folder, and the move state.
+    paths: storage::Resolved,
+    config_dir: PathBuf,
+    default_cache: PathBuf,
+    settings: Mutex<settings::Settings>,
+    /// True while the library is being copied: every database call fails so nothing is written after the snapshot.
+    moving: AtomicBool,
+    cancel_move: AtomicBool,
 }
 
 type Res<T> = Result<T, String>;
 
 impl Store {
     fn db(&self) -> Res<std::sync::MutexGuard<'_, Db>> {
+        if self.moving.load(Ordering::Relaxed) { return Err("The library is being moved.".into()) }
         self.db.lock().map_err(|_| "database lock poisoned".to_string())
     }
     fn invalidate_index(&self) {
@@ -316,6 +327,107 @@ fn set_pinterest_width(app: tauri::AppHandle, w: u32) {
     layout(&app);
 }
 
+/// Sizes and paths for Settings → Storage, plus the missing-library state for the start-up dialog.
+#[tauri::command]
+async fn storage_info(app: tauri::AppHandle) -> Res<Value> {
+    tauri::async_runtime::spawn_blocking(move || -> Res<Value> {
+        let s = app.state::<Store>();
+        let images = s.db().ok().and_then(|d| d.row_counts().ok()).map_or(0, |c| c[1]);
+        let settings = s.settings.lock().map_err(|_| "settings lock poisoned")?.clone();
+        let mut v = serde_json::to_value(storage::info(&s.paths, &settings)).map_err(|e| e.to_string())?;
+        v["images"] = images.into();
+        Ok(v)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Copies the library to `path`, verifies it, switches to it and restarts. Progress: `storage-progress`.
+#[tauri::command]
+async fn move_library(app: tauri::AppHandle, path: String) -> Res<()> {
+    let handle = app.clone();
+    tauri::async_runtime::spawn_blocking(move || -> Res<()> {
+        let s = handle.state::<Store>();
+        s.cancel_move.store(false, Ordering::Relaxed);
+        s.moving.store(true, Ordering::Relaxed);
+        let result = (|| {
+            let db = s.db.lock().map_err(|_| "database lock poisoned".to_string())?;
+            let mut settings = s.settings.lock().map_err(|_| "settings lock poisoned".to_string())?;
+            storage::move_library(&db, &s.paths, &s.config_dir, &mut settings, &PathBuf::from(path), &|p| { let _ = handle.emit("storage-progress", p); }, &s.cancel_move)
+        })();
+        s.moving.store(false, Ordering::Relaxed);
+        result
+    })
+    .await
+    .map_err(|e| e.to_string())??;
+    app.restart()
+}
+
+#[tauri::command]
+fn cancel_move(s: State<Store>) { s.cancel_move.store(true, Ordering::Relaxed) }
+
+/// Deletes the library left behind by the last move.
+#[tauri::command]
+async fn delete_old_library(app: tauri::AppHandle) -> Res<()> {
+    tauri::async_runtime::spawn_blocking(move || -> Res<()> {
+        let s = app.state::<Store>();
+        let mut settings = s.settings.lock().map_err(|_| "settings lock poisoned".to_string())?;
+        storage::delete_old_library(&s.paths, &s.config_dir, &mut settings)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// New cache folder (None = default); thumbnails are copied over, then the app restarts.
+#[tauri::command]
+async fn set_cache_dir(app: tauri::AppHandle, path: Option<String>) -> Res<()> {
+    tauri::async_runtime::spawn_blocking({
+        let app = app.clone();
+        move || -> Res<()> {
+            let s = app.state::<Store>();
+            let mut settings = s.settings.lock().map_err(|_| "settings lock poisoned".to_string())?;
+            storage::set_cache_dir(path.map(PathBuf::from).as_deref(), &s.paths, &s.default_cache, &s.config_dir, &mut settings)
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())??;
+    app.restart()
+}
+
+/// Deletes all thumbnails and makes them again from the originals. Progress: `thumbs-progress`. Returns how many were made.
+#[tauri::command]
+async fn clear_cache(app: tauri::AppHandle) -> Res<usize> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let s = app.state::<Store>();
+        storage::clear_thumbs(&s.files);
+        storage::rebuild_thumbs(&s.files, &|p| { let _ = app.emit("thumbs-progress", p); })
+    })
+    .await
+    .map_err(|e| e.to_string())
+}
+
+/// Points the app at an existing library folder (one with a remind-library.json) and restarts.
+#[tauri::command]
+fn locate_library(app: tauri::AppHandle, s: State<Store>, path: String) -> Res<()> {
+    let p = PathBuf::from(path);
+    if !p.join(storage::MARKER).exists() { return Err("That folder is not a REMind library (no remind-library.json).".into()) }
+    let mut settings = s.settings.lock().map_err(|_| "settings lock poisoned".to_string())?;
+    settings.library_dir = Some(p);
+    settings.save(&s.config_dir)?;
+    drop(settings);
+    app.restart()
+}
+
+/// Forgets a missing library and uses the built-in one.
+#[tauri::command]
+fn use_default_library(app: tauri::AppHandle, s: State<Store>) -> Res<()> {
+    let mut settings = s.settings.lock().map_err(|_| "settings lock poisoned".to_string())?;
+    settings.library_dir = None;
+    settings.save(&s.config_dir)?;
+    drop(settings);
+    app.restart()
+}
+
 #[derive(serde::Serialize)]
 struct Analysis {
     scores: Vec<Scored>,
@@ -372,19 +484,34 @@ pub fn run() {
         .setup(|app| {
             let root = app.path().app_data_dir()?;
             std::fs::create_dir_all(&root)?;
-            let db = Db::open(&root.join("board.sqlite"))?;
+            let default_cache = app.path().app_cache_dir()?.join("cache");
+            let (settings, paths) = storage::resolve(&root, &default_cache);
+            if paths.missing.is_none() { storage::ensure_marker(&paths.library, None)? }
+            let db = Db::open(&paths.library.join("board.sqlite"))?;
+            // Thumbnails from before 0.6 sat inside the library: move them to the cache folder in the background.
+            let legacy = root.join("library").join("thumbs");
+            if legacy.exists() {
+                let to = paths.thumbs.clone();
+                let from = legacy.clone();
+                std::thread::spawn(move || storage::move_legacy_thumbs(&from, &to));
+            }
+            for dir in [&paths.originals, &paths.thumbs] {
+                std::fs::create_dir_all(dir)?;
+                app.asset_protocol_scope().allow_directory(dir, true)?;
+            }
             // Bundled model (installer resources); a dev run from the repo falls back to the checked-out copy.
             let rel = "resources/models/siglip-base-patch16-224";
             let model_dir = app.path().resolve(rel, tauri::path::BaseDirectory::Resource)?;
             let model_dir = if model_dir.join("tokenizer.json").exists() { model_dir } else { PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(rel) };
-            app.manage(Store { db: Mutex::new(db), files: Files(root.join("library")), model_dir, analyzer: Mutex::new(None), index: Mutex::new(None), launch_file: Mutex::new(std::env::args().skip(1).find(|a| a.to_lowercase().ends_with(".bo"))) });
+            app.manage(Store { db: Mutex::new(db), files: Files { originals: paths.originals.clone(), thumbs: paths.thumbs.clone(), legacy_thumbs: Some(legacy) }, paths, config_dir: root, default_cache, settings: Mutex::new(settings), moving: AtomicBool::new(false), cancel_move: AtomicBool::new(false), model_dir, analyzer: Mutex::new(None), index: Mutex::new(None), launch_file: Mutex::new(std::env::args().skip(1).find(|a| a.to_lowercase().ends_with(".bo"))) });
             Ok(())
         })
         .on_window_event(|w, e| { if let tauri::WindowEvent::Resized(_) = e { if w.label() == "main" { layout(w.app_handle()); } } })
         .invoke_handler(tauri::generate_handler![
             load_all, save_boards, save_assets, save_placements, save_connections, save_categories, delete_board,
             delete_assets, delete_placements, delete_connections, delete_category, clear_all, add_asset, save_thumb, import_image,
-            asset_paths, meta_get, meta_set, analyze_asset, search_meaning, export_bo, import_bo, take_launch_file, toggle_pinterest, set_pinterest_width
+            asset_paths, meta_get, meta_set, analyze_asset, search_meaning, export_bo, import_bo, take_launch_file, toggle_pinterest, set_pinterest_width,
+            storage_info, move_library, cancel_move, delete_old_library, set_cache_dir, clear_cache, locate_library, use_default_library
         ])
         .run(tauri::generate_context!())
         .expect("error while running REMind");

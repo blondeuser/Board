@@ -467,3 +467,8 @@ button.status { border: 0; font: inherit; font-size: 15px; cursor: default; }
 .bo-track i.indeterminate { width: 40%; animation: bo-slide 1s ease-in-out infinite alternate; }
 @keyframes bo-slide { from { transform: translateX(0); } to { transform: translateX(150%); } }
 @media (prefers-reduced-motion: reduce) { .bo-track i.indeterminate { animation: none; width: 100%; opacity: 0.5; } }
+
+/* Settings > Storage */
+.modal .path { font-size: 14px; word-break: break-all; }
+.modal .error { color: #b3261e; font-size: 14px; }
+.modal.settings { width: min(560px, calc(100vw - 32px)); }

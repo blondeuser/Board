@@ -217,6 +217,28 @@ fn opt_str(d: &Value, k: &str) -> Option<String> {
     d.get(k).and_then(Value::as_str).map(String::from)
 }
 
+
+// Storage move support (docs/STORAGE.md): consistent copy of the open database, and checks on the copy.
+impl Db {
+    /// Copies the whole database to `dest` with SQLite's online backup (safe while open, unlike copying the file).
+    pub fn backup_to(&self, dest: &Path) -> Res<()> {
+        let mut out = Connection::open(dest).map_err(e)?;
+        let b = rusqlite::backup::Backup::new(&self.0, &mut out).map_err(e)?;
+        b.run_to_completion(256, std::time::Duration::ZERO, None).map_err(e)
+    }
+    /// `PRAGMA integrity_check` says ok.
+    pub fn integrity_ok(&self) -> Res<bool> {
+        let r: String = self.0.query_row("PRAGMA integrity_check", [], |r| r.get(0)).map_err(e)?;
+        Ok(r == "ok")
+    }
+    /// Row counts of the data tables, in a fixed order (to compare a copy with its source).
+    pub fn row_counts(&self) -> Res<Vec<i64>> {
+        ["boards", "assets", "placements", "connections", "categories", "embeddings"]
+            .iter()
+            .map(|t| self.0.query_row(&format!("SELECT COUNT(*) FROM {t}"), [], |r| r.get(0)).map_err(e))
+            .collect()
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;
