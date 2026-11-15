@@ -2,7 +2,7 @@
 
 Living status. **Update at the end of every work session.** Rules live in `CLAUDE.md`, business logic in `MEMORY.md`.
 
-_Last updated: 2026-11-15 (plan: Rust backend)_
+_Last updated: 2026-11-15 (v0.2.0 built)_
 
 ## Status
 
@@ -14,6 +14,8 @@ _Last updated: 2026-11-15 (plan: Rust backend)_
 | **Hosting**       | GitHub `blondeuser/Board` (public). Latest code commit `2c5a6ff` |
 
 ## Resume here (next session)
+
+**Rust backend progress (2026-11-15):** step 1 (SQLite + files + migration) and step 2 (import) are built and in 0.2.0; step 0 is only partly done (storage is behind `src/backend/`, `useBoardApp.ts` not split). **Next: install 0.2.0 over a real 0.1.x library and check the migration**, record the baseline/import timings, then step 3 (bundled SigLIP + `ort`), step 4 (`.bo` in Rust).
 
 **Decided 2026-11-15: Rust backend, desktop only.** Plan in `docs/RUST_BACKEND.md` (roadmap §8). Before the pen work or alongside it: step 0 (split `useBoardApp.ts` behind a `Backend` interface, update `docs/SQLITE_SCHEMA.md`, record baseline numbers), then step 1 (SQLite + files + IndexedDB migration, v0.2.0). Ship v0.1.1 first as planned below.
 
@@ -117,9 +119,9 @@ _Last updated: 2026-11-15 (plan: Rust backend)_
 - [ ] Phase 5 extras (pick after use): light brush, arrows, attach ink to an image + annotated export, shape recognition, tilt, partial eraser, sketch frames, macOS native pressure plugin if WKWebView has none
 
 ### 8. Rust backend (desktop only), planned 2026-11-15 — `docs/RUST_BACKEND.md`
-- [ ] Step 0: split `useBoardApp.ts` by domain behind a `Backend` interface; `docs/SQLITE_SCHEMA.md` matches `types.ts` (shapes, connections, `spacesVersion`); baseline numbers (start, import 100, analysis/image, search, drag 12)
-- [ ] Step 1 (v0.2.0): `rusqlite` + migrations, file store, asset protocol for thumbs, `src/backend/api.ts` + `fake.ts`, today's TS backend moved to `src/backend/browser/` as the frozen browser dev mode, one-time IndexedDB → SQLite migration with count check (IndexedDB kept as safety net)
-- [ ] Step 2: import pipeline in Rust (hash, dedupe, decode, thumb, palette; `rayon`); drop/paste/LIT/`.bo` share one entry point; `dragDropEnabled` on
+- [~] Step 0 (storage interface done, hook split not): split `useBoardApp.ts` by domain behind a `Backend` interface; `docs/SQLITE_SCHEMA.md` matches `types.ts` (shapes, connections, `spacesVersion`); baseline numbers (start, import 100, analysis/image, search, drag 12)
+- [x] Step 1 (v0.2.0, built; migration untested on a real library): `rusqlite` + migrations, file store, asset protocol for thumbs, `src/backend/api.ts` + `fake.ts`, today's TS backend moved to `src/backend/browser/` as the frozen browser dev mode, one-time IndexedDB → SQLite migration with count check (IndexedDB kept as safety net)
+- [x] Step 2 (built 2026-11-15; `.bo`/drag-drop paths and timings pending): import pipeline in Rust (hash, dedupe, decode, thumb, palette; `rayon`); drop/paste/LIT/`.bo` share one entry point; `dragDropEnabled` on
 - [ ] Step 3: bundled SigLIP ONNX + `ort` (DirectML/CoreML, CPU fallback) + `tokenizers`; parity check vs transformers.js; analysis queue + search in Rust; remove worker + `@huggingface/transformers`
 - [ ] Step 4: `.bo` read/write in Rust; opens TS-written `.bo` fixtures
 - [ ] Step 5: remove IndexedDB code (after one safety release), tighten CSP
@@ -169,8 +171,15 @@ _Last updated: 2026-11-15 (plan: Rust backend)_
 
 ## Log
 
-, step 1 Rust half)
-- `src-tauri/src/db.rs` (rusqlite bundled, `user_version` migrations, JSON-document tables for boards/assets/placements/connections/categories, same delete rules as `db.ts`), `files.rs` (originals/thumbs by asset id, atomic writes, id sanitising, add_asset body framing), `lib.rs` (thin commands: load_all, save_*, delete_*, add_asset raw body, save_thumb, asset_paths, meta). Crates added: `rusqlite`, `serde_json` (both approved). `cargo test`: 9 pass. **Wired up later the same day (see next entry)**: step 0 (split `useBoardApp.ts`) not done, no IndexedDB migration, asset protocol not enabled, `npm run tauri dev` not run. Deviates from `docs/SQLITE_SCHEMA.md` (JSON `data` columns instead of normalised tables; embeddings stay in the asset JSON until step 3); doc not updated yet. Not committed.
+### 2026-11-15 (v0.2.0 build, Help > About)
+- Version 0.1.1 → 0.2.0 in `package.json`, `tauri.conf.json`, `Cargo.toml` (storage moved to SQLite). `npm run tauri build` OK (release, ~2 min): `src-tauri/target/release/bundle/nsis/REMind_0.2.0_x64-setup.exe` (8.85 MB) + MSI (10.35 MB; ship NSIS only). New **Help > About REMind** dialog shows the version (from `package.json` via `vite.config.ts` `define`, `src/shared/version.ts`) and the build date. Checked: typecheck, 59 tests, `cargo test` 16, About dialog in the browser build, `tauri dev` import/dedupe/persist via `scripts/smoke-desktop.mjs` (start the app with `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222`). **Not yet checked:** installing 0.2.0 over a real 0.1.x library (IndexedDB → SQLite migration), the installed app itself, LIT import/paste/`.bo` on the desktop. Back up `%LOCALAPPDATA%com.remstudio.remind` before the first upgrade.
+
+### 2026-11-15 (Rust backend: step 2, import in Rust)
+- `src-tauri/src/{import,color}.rs`: `import_image` command (raw body in, asset JSON out): SHA-256, dedupe by hash (an existing image is returned instead of a copy), EXIF-aware decode via `image`, 1280px thumbnail (JPEG, PNG only with real transparency; small files are their own thumbnail), OKLab k-means palette + colour families ported from TS. Thumbs are `thumbs/<id>.<ext>`. `Backend.importImage`; `useBoardApp.importBlobs` uses it (browser mode keeps the TS path). Crates `image`, `sha2` added (approved); `rayon`/`fast_image_resize` skipped (JS imports in parallel; CatmullRom resize first, switch if timing says so). `cargo test` 16 pass. **Untested:** palette parity vs TS on real photos, no timing numbers; drag-drop paths and `.bo` import still use the old route.
+
+### 2026-11-15 (Rust backend: storage core + UI wiring, steps 0-1)
+- `src-tauri/src/{db,files,lib}.rs`: rusqlite (bundled), `user_version` migrations, JSON-document tables for boards/assets/placements/connections/categories (same delete rules as `db.ts`), originals/thumbs on disk with atomic writes, thin commands; `cargo test` covers db + files. Crates `rusqlite`, `serde_json`.
+- `src/backend/{types,index,api,migrate}.ts`: `db` is chosen by `isDesktop()` (Rust `api.ts` with the one-time IndexedDB → SQLite copy + count check; browser keeps `browser/db.ts`, moved from `storage/db.ts`). Asset protocol enabled for `$APPDATA/library/**`. Deviates from `docs/SQLITE_SCHEMA.md` (JSON `data` columns; embeddings stay in the asset JSON until step 3; note added to the doc). Step 0 only partly done: `useBoardApp.ts` not split.
 
 ### 2026-11-15 (plan: Rust backend)
 - Reviewed the code for performance. Rust helps for model inference (WASM → native ONNX Runtime + GPU) and import/storage on disk; not for k-means, hashing or search maths. Found two TS-side causes of lag: drag/pan set React state on every pointer move; each analysis result re-renders the whole app. Decided: Rust backend, desktop only, model bundled, crates approved; then amended: `npm run dev` in the browser stays as a dev mode on the frozen TS backend. New `docs/RUST_BACKEND.md`; roadmap §8, decision, `MEMORY.md`, `CLAUDE.md` updated. No code changed; not committed.

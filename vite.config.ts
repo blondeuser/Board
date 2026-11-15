@@ -4,6 +4,7 @@ import react from '@vitejs/plugin-react'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { lookup } from 'node:dns/promises'
 import { isIP } from 'node:net'
+import { readFileSync } from 'node:fs'
 import { parseLink } from './src/sources/link/parse'
 
 /**
@@ -125,6 +126,10 @@ function linkProxy(): Plugin {
 export default defineConfig({
   plugins: [react(), litProxy(), linkProxy()],
   // Tauri expects a fixed port, readable Rust errors, and no reload when Rust files change.
+  define: {
+    __APP_VERSION__: JSON.stringify(JSON.parse(readFileSync('./package.json', 'utf8')).version),
+    __BUILD_DATE__: JSON.stringify(new Date().toISOString().slice(0, 10)),
+  },
   clearScreen: false,
   server: { port: 5173, strictPort: true, watch: { ignored: ['**/src-tauri/**'] } },
   envPrefix: ['VITE_', 'TAURI_ENV_*'],

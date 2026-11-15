@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { BoardApp } from '../app/useBoardApp'
 import { ALL_TYPE_LABELS } from '../categorize/style/labels'
+import { APP_VERSION, BUILD_DATE } from '../shared/version'
 import { CloseIcon, SidebarIcon } from './icons'
 
 const isMac = /Mac|iPhone|iPad/.test(navigator.platform)
@@ -24,6 +25,7 @@ interface Item {
 /** A macOS-style menu bar: click a title to open it, hover to move between open menus, Esc or a click elsewhere closes. */
 export function MenuBar({ app, sidebarOpen, onToggleSidebar, onLitImport }: { app: BoardApp; sidebarOpen: boolean; onToggleSidebar: () => void; onLitImport: () => void }) {
   const [open, setOpen] = useState<string | null>(null)
+  const [about, setAbout] = useState(false)
   const bar = useRef<HTMLElement>(null)
   const fileInput = useRef<HTMLInputElement>(null)
   const onBoard = app.screen === 'board'
@@ -71,6 +73,7 @@ export function MenuBar({ app, sidebarOpen, onToggleSidebar, onLitImport }: { ap
     },
     { title: 'Type', badge: filter.types.length, items: typeItems.length ? typeItems : [{ label: 'No types detected yet', disabled: true, run: () => {} }] },
     { title: 'Categories', badge: filter.categories.length, items: categoryItems },
+    { title: 'Help', items: [{ label: 'About REMind', run: () => setAbout(true) }] },
   ]
 
   useEffect(() => {
@@ -144,6 +147,18 @@ export function MenuBar({ app, sidebarOpen, onToggleSidebar, onLitImport }: { ap
           if (f) void app.importBo(f)
         }}
       />
+      {about && (
+        <div className="modal-backdrop" onPointerDown={(e) => e.target === e.currentTarget && setAbout(false)}>
+          <div className="modal" role="dialog" aria-modal="true" aria-labelledby="about-title">
+            <header>
+              <strong id="about-title">About REMind</strong>
+              <button className="icon" title="Close" onClick={() => setAbout(false)}><CloseIcon /></button>
+            </header>
+            <p>Version {APP_VERSION}</p>
+            <p className="muted small">Built {BUILD_DATE}. Your images stay on this computer.</p>
+          </div>
+        </div>
+      )}
     </nav>
   )
 }
