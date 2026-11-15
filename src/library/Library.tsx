@@ -41,8 +41,15 @@ export function Library({ app, showTags, onDropData, onDelete }: { app: BoardApp
   const searching = app.query.trim().length > 0
   // While searching, results are one flat list, best match first.
   const ranked = useMemo(
-    () => (searching ? [...shown].sort((a, b) => (app.semantic.get(b.id) ?? -1) - (app.semantic.get(a.id) ?? -1)) : shown),
-    [shown, searching, app.semantic],
+    () => {
+      if (!searching) return shown
+      // A hit in the source name or page title comes first, then by meaning.
+      const words = app.query.toLowerCase().split(/\s+/).filter((w) => w.length > 1)
+      const named = (a: Asset) => !!a.source && words.length > 0 && words.every((w) => `${a.source!.site} ${a.source!.title ?? ''}`.toLowerCase().includes(w))
+      const score = (a: Asset) => (named(a) ? 10 : 0) + (app.semantic.get(a.id) ?? -1)
+      return [...shown].sort((a, b) => score(b) - score(a))
+    },
+    [shown, searching, app.semantic, app.query],
   )
   const filtering = app.filter.colors.length + app.filter.categories.length + app.filter.types.length > 0
   // Notes and text boxes live on boards as placements; here they become cards in the same grid, dated like images
@@ -145,6 +152,11 @@ export function Library({ app, showTags, onDropData, onDelete }: { app: BoardApp
     setBox(null)
   }
   const ctxItems: (MenuItem | 'sep')[] = [
+    {
+      label: `Add to board${selected.length > 1 ? ` (${selected.length})` : ''}`,
+      disabled: !selected.length || !app.boards.length,
+      children: app.boards.map((b) => ({ label: b.name || 'Untitled', run: () => app.addToBoard(selected, b.id) })),
+    },
     { label: `Export as JPEG${selected.length > 1 ? `s (${selected.length})` : ''}`, disabled: !selected.length, run: () => void app.exportJpeg(selected) },
     'sep',
     { label: 'Select All', run: () => setSelected(ranked.map((a) => a.id)) },
@@ -183,7 +195,7 @@ export function Library({ app, showTags, onDropData, onDelete }: { app: BoardApp
           <SearchIcon />
           <input
             type="search"
-            placeholder="Search your library, e.g. a man, red poster, kitchen"
+            placeholder="Search by subject, colour, tag, source or title, e.g. red poster, kitchen, vnexpress"
             value={app.query}
             onChange={(e) => app.setQuery(e.target.value)}
             aria-label="Search library"

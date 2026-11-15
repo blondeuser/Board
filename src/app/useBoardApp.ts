@@ -863,7 +863,7 @@ export function useBoardApp() {
         ...a.categoryIds.map((id) => categories.find((c) => c.id === id)?.name ?? ''),
         ...a.colors,
         ...(boardNamesByAsset.get(a.id) ?? []),
-        ...(a.source ? [a.source.site, a.source.title ?? '', ...(a.source.categories ?? []), ...Object.values(a.source.details ?? {})] : []),
+        ...(a.source ? [a.source.site, a.source.title ?? '', sourceAddressWords(a.source.url), ...(a.source.categories ?? []), ...Object.values(a.source.details ?? {})] : []),
       ].join(' ').toLowerCase().split(/[^\p{L}\p{N}]+/u)
       // A tag-name hit (a word starting with what you typed) or a meaning hit both count.
       return words.every((w) => hay.some((h) => h.startsWith(w))) || semantic.has(a.id)
@@ -884,6 +884,14 @@ export function useBoardApp() {
     importBlobs, patchPlacements, commitPlacements, bringToFront, removeFromBoard,
     toggleTag, addCategory, removeCategory, toggleFilter, clearFilter, matches, notify,
   }
+}
+
+/** Words of a source address (site name and path), so links without a title are still found by their address. */
+const sourceAddressWords = (url: string): string => {
+  try {
+    const u = new URL(url)
+    return u.hostname + ' ' + decodeURIComponent(u.pathname)
+  } catch { return '' }
 }
 
 export type BoardApp = ReturnType<typeof useBoardApp>
