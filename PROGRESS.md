@@ -2,7 +2,7 @@
 
 Living status. **Update at the end of every work session.** Rules live in `CLAUDE.md`, business logic in `MEMORY.md`.
 
-_Last updated: 2026-11-15 (v0.8.0: link titles on cards, link loading fixes)_
+_Last updated: 2026-11-15 (v0.8.1: optimisation audit, card-size slider)_
 
 ## Status
 
@@ -178,7 +178,23 @@ _Last updated: 2026-11-15 (v0.8.0: link titles on cards, link loading fixes)_
 | 2026-11-14 | LIT import parses the public winners pages (no API exists) through a dev-server proxy; no extra dependency (regex parsers, no jsdom/cheerio) | Site and photo bucket send no CORS headers; regex on server-rendered PHP is small, testable on saved pages and runs in Node, browser and Tauri |
 | 2026-11-14 | Imported images carry `Asset.source` (link, title, categories, credit, details) instead of auto-creating custom categories | 68 award categories per year would flood the sidebar; source data stays searchable and groupable (Award tab) and keeps photographer credits |
 
+- **To fix (optimisation audit 2026-11-15):**
+  - Library grid is not virtualised: every card is in the DOM, so a library of thousands of images renders and decodes them all. Window the grid (render only the visible rows).
+  - Analysis runs on one thread (`analyze/`, one image at a time); DirectML / GPU execution provider for `ort` is untried. Measure before changing.
+  - `rebuild_thumbs` makes thumbnails one by one; use `rayon` (already approved).
+  - `import_bo` reopens the zip for every image; open it once and read entries in order.
+  - `load_all` sends the whole library as one JSON; page it or send ids first if a library passes ~20k assets.
+  - `useBoardApp.ts` is ~900 lines: split by domain (boards + placements, assets + tags, search, analysis queue) before it grows.
+
 ## Log
+
+### 2026-11-15 (v0.8.1: optimisation audit, Library card-size slider)
+- **Library card size:** a minimal slider (thin line, − / +, fades in when you hover the search area) sets `--card-w` for all card grids, 100-480 px, remembered in localStorage (`Library.tsx`, `styles.css`). Stack tiles keep their size. Version 0.8.1.
+- Library inspector no longer sits under the link title on a card (`.cell` isolates its stacking context, `.inspector` z-index 5; `scripts/smoke-lib-inspector.mjs`).
+- Desktop bundle: `npm run build:desktop` (`vite build --mode desktop`, used by `tauri build`) folds `__DESKTOP_BUILD__` to true, so the browser-only model worker, the 27 MB ONNX wasm and the IndexedDB backend are not in the installer. `npm run dev` / `npm run build` keep the browser dev mode. Classifier split: `categorize/style/classifier.ts` (thin) + `browserClassifier.ts` (worker).
+- Desktop thumbnails load straight from the file (`db.thumbUrl`, asset protocol URL) instead of fetch -> Blob -> blob URL; loaded URLs are applied once per animation frame; analysis no longer fetches the image into JS on desktop. Not yet checked in the running app.
+- Remaining findings listed under Backlog "To fix".
+- **Build:** `REMind_0.8.1_x64-setup.exe` (NSIS, 166 MiB, ship this one) and the MSI (180 MiB). tsc, 85 TS tests, 38 cargo tests pass. Not hand-tested in the installed app: thumbnail loading by asset URL, the slider.
 
 ### 2026-11-15 (Mac: .bo drop, Finder open, file icon)
 - Commit `b159dff`.

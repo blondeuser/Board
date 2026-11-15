@@ -109,12 +109,28 @@ export function useBoardApp() {
   )
 
   // ---- image URLs, loaded lazily for the active board ----
+  // Loaded URLs are applied once per animation frame: one state update per image would re-render everything N times.
+  const urlBatch = useRef<Record<string, string>>({})
+  const urlFlush = useRef(0)
+  const queueUrl = useCallback((id: string, url: string) => {
+    urlBatch.current[id] = url
+    if (urlFlush.current) return
+    urlFlush.current = requestAnimationFrame(() => {
+      urlFlush.current = 0
+      const batch = urlBatch.current
+      urlBatch.current = {}
+      setUrls((u) => ({ ...u, ...batch }))
+    })
+  }, [])
   useEffect(() => {
     const wanted = screen === 'library' ? Object.keys(assets) : boardPlacements.map((p) => p.assetId)
     for (const assetId of wanted) {
       if (!assetId || urls[assetId] || requested.current.has(assetId)) continue
       requested.current.add(assetId)
       void (async () => {
+        // Desktop: the <img> loads the thumbnail file itself (asset protocol); no fetch, no Blob in JS memory.
+        const direct = await db.thumbUrl?.(assetId)
+        if (direct) return queueUrl(assetId, direct)
         let thumb = await db.thumb(assetId)
         if (!thumb) {
           // Imported before thumbnails existed: build one once and keep it.
@@ -123,10 +139,10 @@ export function useBoardApp() {
           thumb = await makeThumbnail(original)
           void db.saveThumb(assetId, thumb)
         }
-        setUrls((u) => ({ ...u, [assetId]: URL.createObjectURL(thumb!) }))
+        queueUrl(assetId, URL.createObjectURL(thumb!))
       })()
     }
-  }, [boardPlacements, urls, screen, assets])
+  }, [boardPlacements, urls, screen, assets, queueUrl])
 
   // ---- boards ----
   const selectBoard = useCallback((id: string) => {
@@ -731,8 +747,9 @@ export function useBoardApp() {
       void (async () => {
         for (const id of todo) {
           try {
-            const blob = (await db.thumb(id)) ?? (await db.blob(id))
-            if (!blob) continue
+            // Desktop: Rust reads the file itself, so the image never has to be loaded into JS.
+            const blob = isDesktop() ? undefined : ((await db.thumb(id)) ?? (await db.blob(id)))
+            if (!blob && !isDesktop()) continue
             const { types, embedding, detail } = await analyseAsset(id, blob)
             // Never overwrite types the user already edited while we were working; only add space tags next to them.
             updateAssets([id], (a) => {

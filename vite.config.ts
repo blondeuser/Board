@@ -123,10 +123,11 @@ function linkProxy(): Plugin {
   }
 }
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [react(), litProxy(), linkProxy()],
   // Tauri expects a fixed port, readable Rust errors, and no reload when Rust files change.
   define: {
+    __DESKTOP_BUILD__: JSON.stringify(mode === 'desktop'),
     __APP_VERSION__: JSON.stringify(JSON.parse(readFileSync('./package.json', 'utf8')).version),
     __BUILD_DATE__: JSON.stringify(new Date().toISOString().slice(0, 10)),
   },
@@ -134,4 +135,4 @@ export default defineConfig({
   server: { port: 5173, strictPort: true, watch: { ignored: ['**/src-tauri/**'] } },
   envPrefix: ['VITE_', 'TAURI_ENV_*'],
   test: { include: ['tests/**/*.test.ts'] },
-})
+}))

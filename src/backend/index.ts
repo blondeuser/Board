@@ -5,7 +5,7 @@ import type { Backend } from './types'
 // side out of the other's bundle. Every call waits for the chosen backend.
 let chosen: Promise<Backend> | null = null
 const pick = (): Promise<Backend> =>
-  (chosen ??= isDesktop()
+  (chosen ??= __DESKTOP_BUILD__ || isDesktop()
     ? Promise.all([import('./api'), import('./migrate')]).then(async ([{ api }, { migrateFromIndexedDb }]) => {
         await migrateFromIndexedDb()
         return api
@@ -13,11 +13,11 @@ const pick = (): Promise<Backend> =>
     : import('./browser/db').then((m) => m.db))
 
 const methods = [
-  'clearAll', 'boards', 'saveBoards', 'deleteBoard', 'assets', 'saveAssets', 'addAsset', 'importImage', 'deleteAssets', 'blob', 'thumb',
+  'clearAll', 'boards', 'saveBoards', 'deleteBoard', 'assets', 'saveAssets', 'addAsset', 'importImage', 'deleteAssets', 'blob', 'thumb', 'thumbUrl',
   'saveThumb', 'placements', 'savePlacements', 'deletePlacements', 'connections', 'saveConnections', 'deleteConnections',
   'categories', 'saveCategories', 'deleteCategory',
 ] as const
 
 export const db = Object.fromEntries(
-  methods.map((m) => [m, (...args: unknown[]) => pick().then((b) => (b[m] as (...a: unknown[]) => unknown)(...args))]),
+  methods.map((m) => [m, (...args: unknown[]) => pick().then((b) => (b[m] as ((...a: unknown[]) => unknown) | undefined)?.(...args))]),
 ) as unknown as Backend

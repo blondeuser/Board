@@ -14,6 +14,8 @@ export interface Backend {
   deleteAssets(ids: string[]): Promise<void>
   blob(id: string): Promise<Blob | undefined>
   thumb(id: string): Promise<Blob | undefined>
+  /** Desktop only: a URL the <img> can load straight from the thumbnail file (no copy into JS memory). Undefined = no thumbnail yet. */
+  thumbUrl?(id: string): Promise<string | undefined>
   saveThumb(id: string, blob: Blob): Promise<void>
   placements(): Promise<Placement[]>
   savePlacements(p: Placement[]): Promise<void>

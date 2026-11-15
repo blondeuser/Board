@@ -33,6 +33,13 @@ const loadGroupBy = (): GroupBy => {
 export function Library({ app, showTags, onDropData, onDelete }: { app: BoardApp; showTags: boolean; onDropData: (dt: DataTransfer) => void; onDelete: (ids: string[]) => void }) {
   const { assets, urls, categories, librarySelection: selected, setLibrarySelection: setSelected } = app
   const [groupBy, setGroupBy] = useState<GroupBy>(loadGroupBy)
+  const [cardW, setCardW] = useState(() => {
+    try { return Math.min(480, Math.max(100, Number(localStorage.getItem('library.cardW')) || 220)) } catch { return 220 }
+  })
+  const pickCardW = (w: number) => {
+    setCardW(w)
+    try { localStorage.setItem('library.cardW', String(w)) } catch { /* storage blocked: size just isn't remembered */ }
+  }
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const shown = useMemo(
     () => Object.values(assets).filter((a) => app.matches(a.id)).sort((a, b) => b.createdAt - a.createdAt),
@@ -169,6 +176,7 @@ export function Library({ app, showTags, onDropData, onDelete }: { app: BoardApp
   return (
     <div
       className="library"
+      style={{ '--card-w': `${cardW}px` } as React.CSSProperties}
       ref={root}
       onPointerDown={onBandDown}
       onPointerMove={onBandMove}
@@ -202,6 +210,11 @@ export function Library({ app, showTags, onDropData, onDelete }: { app: BoardApp
           />
         </label>
         <span className="muted count" data-pending={app.searchPending}>{app.searchPending ? 'Searching…' : shown.length === total ? `${total} images` : `${shown.length} of ${total}`}</span>
+        <label className="size-slider" title="Card size">
+          <span aria-hidden="true">−</span>
+          <input type="range" min={100} max={480} step={10} value={cardW} onChange={(e) => pickCardW(Number(e.target.value))} aria-label="Card size" />
+          <span aria-hidden="true">+</span>
+        </label>
       </div>
       {!searching && <div className="tabs" role="tablist" aria-label="Group by" onClick={(e) => e.stopPropagation()}>
         {TABS.map(([id, label]) => (

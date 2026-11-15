@@ -56,6 +56,10 @@ export const api: Backend = {
   deleteAssets: del('delete_assets'),
   blob: (id) => file(id, 0),
   thumb: (id) => file(id, 1),
+  thumbUrl: async (id) => {
+    const path = (await invoke<(string | null)[]>('asset_paths', { id }))[1]
+    return path ? convertFileSrc(path) : undefined
+  },
   saveThumb: async (id, blob) => {
     await invoke('save_thumb', new Uint8Array(await blob.arrayBuffer()), { headers: { 'x-asset-id': id, 'x-thumb-ext': extOf(blob) } })
   },
