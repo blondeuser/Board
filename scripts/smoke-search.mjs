@@ -8,11 +8,13 @@ import path from 'node:path'
 const dirs = process.argv.slice(2)
 if (!dirs.length) throw new Error('pass at least one photo folder')
 const files = dirs.flatMap((d) => fs.readdirSync(d).filter((f) => /\.jpe?g$/i.test(f)).sort().map((f) => path.join(d, f)))
-const browser = await chromium.launch({ executablePath: 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe' })
-const page = await browser.newPage({ viewport: { width: 1400, height: 900 } })
+// CDP=http://127.0.0.1:9222 drives the running desktop app instead of Edge (see scripts/smoke-desktop.mjs)
+const browser = process.env.CDP ? await chromium.connectOverCDP(process.env.CDP) : await chromium.launch({ executablePath: 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe' })
+const page = process.env.CDP ? browser.contexts()[0].pages()[0] : await browser.newPage({ viewport: { width: 1400, height: 900 } })
 const errors = []
 page.on('pageerror', (e) => errors.push(e.message))
-await page.goto(process.env.URL ?? 'http://localhost:5173'); await page.waitForSelector('.viewport')
+if (!process.env.CDP) await page.goto(process.env.URL ?? 'http://localhost:5173')
+await page.waitForSelector('.viewport')
 
 const nameOf = {}
 for (const f of files) {
@@ -47,7 +49,7 @@ const ask = async (q) => {
   const found = await page.locator('.cell img').evaluateAll((imgs) => imgs.map((i) => `${i.naturalWidth}x${i.naturalHeight}`))
   return found.map((d) => nameOf[d] ?? d)
 }
-for (const q of ['the man', 'a man', 'a woman', 'cat', 'dog', 'mountain', 'building', 'flower', 'portrait', 'dragon', '']) {
+for (const q of process.env.QUERIES?.split('|') ?? ['the man', 'a man', 'a woman', 'cat', 'dog', 'mountain', 'building', 'flower', 'portrait', 'dragon', '']) {
   console.log(JSON.stringify(q).padEnd(12), '->', (await ask(q)).join(', ') || '(nothing)')
 }
 await page.locator('.search input').fill('the man'); await page.waitForTimeout(500)

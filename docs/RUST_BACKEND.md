@@ -73,6 +73,8 @@ SQL only in `db/`. Paths only from `files.rs` (Tauri path API for the app-data r
 
 ## Model (step 3)
 
+**Built 2026-11-15 (CPU).** Facts learnt: `ort` is 2.0.0-rc.15 (`Session::builder(&Environment)`, one environment per process, ONNX Runtime linked statically, `DirectML.dll` copied beside the exe but not bundled yet); `tokenizers` must be 0.22 (1.0.0-rc.4 is a different API); model files come from `scripts/fetch-model.mjs`; parity fixtures from `scripts/make-siglip-fixtures.mjs`; resize must be bilinear point sampling to match the browser pipeline. GPU (DirectML/CoreML), timings and removing the TS worker are still open.
+
 - Bundle SigLIP base patch16-224 as ONNX (vision + text) + `tokenizer.json` in `src-tauri/resources/models/<id>/`,
   plus the ONNX Runtime (and DirectML) libraries. Load with `ort`; pick DirectML/CoreML, fall back to CPU.
 - **Parity check before switching:** preprocessing must match the transformers.js processor (resize 224, rescale,

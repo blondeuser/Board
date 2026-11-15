@@ -16,3 +16,6 @@ Thumbs.db
 # Per-machine agent tooling, smoke screenshots, Playwright state
 agent/
 smoke*.png
+
+# SigLIP model files (scripts/fetch-model.mjs)
+src-tauri/resources/models/

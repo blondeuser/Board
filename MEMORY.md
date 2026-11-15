@@ -56,7 +56,7 @@ What the project does and the domain rules behind it. **Rules for working on the
 - **.bo files:** see `docs/BO_FORMAT.md`. Importing a `.bo` dedupes images by content hash into the library, so assets need a `hash` (SHA-256 of the original) — not stored yet.
 - Original files are never modified; thumbnails are derived and rebuildable.
 - **Moving to the Rust backend must keep every existing library:** the one-time IndexedDB → SQLite migration counts rows before marking itself done, and IndexedDB stays untouched for at least one release.
-- **Model storage:** model files are plain files on disk (bundled or downloaded once), never in a database; vectors and tags go in the metadata DB. Each embedding records its `embeddingModel`, so a new model recomputes only stale items. Today the browser fetches the model from huggingface.co and ONNX runtime from cdn.jsdelivr.net, then caches it; with the Rust backend the model is bundled in the installer (see `docs/RUST_BACKEND.md`).
+- **Model storage:** model files are plain files on disk (bundled or downloaded once), never in a database; vectors and tags go in the metadata DB. Each embedding records its `embeddingModel`, so a new model recomputes only stale items. The desktop app bundles the model in the installer and runs it in Rust (`ort`); only the browser dev mode fetches it from huggingface.co and cdn.jsdelivr.net. On desktop embeddings never leave Rust (stored in the `embeddings` table, searched in memory). Image preprocessing is bilinear point-sampling to 224x224 on purpose (matches the old browser pipeline; see PROGRESS 2026-11-15 step 3).
 
 ## Lighting techniques (research 2026-11-14)
 

@@ -24,6 +24,8 @@ CREATE INDEX placements_asset ON placements(asset_id);
 CREATE TABLE connections (id TEXT PRIMARY KEY, board_id TEXT NOT NULL, data TEXT NOT NULL);
 CREATE INDEX connections_board ON connections(board_id);
 CREATE TABLE categories (id TEXT PRIMARY KEY, data TEXT NOT NULL);
+", "
+CREATE TABLE embeddings (asset_id TEXT PRIMARY KEY, model TEXT NOT NULL, vec BLOB NOT NULL);
 "];
 
 pub struct Db(Connection);
@@ -84,8 +86,38 @@ impl Db {
     pub fn save_boards(&mut self, v: &[Value]) -> Res<()> {
         self.put(v, "INSERT OR REPLACE INTO boards (id, data) VALUES (?1, ?2)", |_| Ok(vec![]))
     }
-    pub fn save_assets(&mut self, v: &[Value]) -> Res<()> {
-        self.put(v, "INSERT OR REPLACE INTO assets (id, data, hash) VALUES (?1, ?2, ?3)", |d| Ok(vec![opt_str(d, "hash")]))
+    /// An `embedding` array in a document (old libraries, the browser backend) is moved to the embeddings table: vectors
+    /// never live in the JSON. Returns true when any were moved (the in-memory search index is then stale).
+    pub fn save_assets(&mut self, v: &[Value]) -> Res<bool> {
+        let mut moved = false;
+        let mut docs = Vec::with_capacity(v.len());
+        for d in v {
+            let mut d = d.clone();
+            if let Some(Value::Array(a)) = d.as_object_mut().and_then(|o| o.remove("embedding")) {
+                let vec: Vec<f32> = a.iter().filter_map(|x| x.as_f64().map(|f| f as f32)).collect();
+                let (id, model) = (req_str(&d, "id")?, opt_str(&d, "embeddingModel"));
+                if let (false, Some(model)) = (vec.is_empty(), model) {
+                    self.put_embedding(&id, &model, &vec)?;
+                    moved = true;
+                }
+            }
+            docs.push(d);
+        }
+        self.put(&docs, "INSERT OR REPLACE INTO assets (id, data, hash) VALUES (?1, ?2, ?3)", |d| Ok(vec![opt_str(d, "hash")]))?;
+        Ok(moved)
+    }
+
+    pub fn put_embedding(&self, id: &str, model: &str, vec: &[f32]) -> Res<()> {
+        let blob: Vec<u8> = vec.iter().flat_map(|f| f.to_le_bytes()).collect();
+        self.0.execute("INSERT OR REPLACE INTO embeddings (asset_id, model, vec) VALUES (?1, ?2, ?3)", params![id, model, blob]).map_err(e)?;
+        Ok(())
+    }
+
+    /// Every stored embedding made by `model`.
+    pub fn embeddings(&self, model: &str) -> Res<Vec<(String, Vec<f32>)>> {
+        let mut st = self.0.prepare("SELECT asset_id, vec FROM embeddings WHERE model=?1").map_err(e)?;
+        let rows = st.query_map([model], |r| Ok((r.get::<_, String>(0)?, r.get::<_, Vec<u8>>(1)?))).map_err(e)?;
+        rows.map(|r| r.map_err(e).map(|(id, b)| (id, b.chunks_exact(4).map(|c| f32::from_le_bytes(c.try_into().unwrap())).collect()))).collect()
     }
     pub fn save_placements(&mut self, v: &[Value]) -> Res<()> {
         self.put(v, "INSERT OR REPLACE INTO placements (id, data, board_id, asset_id) VALUES (?1, ?2, ?3, ?4)", |d| {
@@ -135,6 +167,7 @@ impl Db {
                 }
                 t.execute("DELETE FROM placements WHERE asset_id=?1", [id]).map_err(e)?;
                 t.execute("DELETE FROM assets WHERE id=?1", [id]).map_err(e)?;
+                t.execute("DELETE FROM embeddings WHERE asset_id=?1", [id]).map_err(e)?;
             }
             Ok(())
         })
@@ -161,7 +194,7 @@ impl Db {
 
     pub fn clear_all(&mut self) -> Res<()> {
         self.tx(|t| {
-            for table in ["boards", "assets", "placements", "connections", "categories"] {
+            for table in ["boards", "assets", "placements", "connections", "categories", "embeddings"] {
                 t.execute(&format!("DELETE FROM {table}"), []).map_err(e)?;
             }
             Ok(())
@@ -237,6 +270,18 @@ mod tests {
         let mut db = seeded();
         db.delete_assets(&["a1".into()]).unwrap();
         assert_eq!((count(&db, "assets"), count(&db, "placements"), count(&db, "connections")), (1, 2, 1));
+    }
+
+    #[test]
+    fn embeddings_leave_the_json_and_follow_their_asset() {
+        let mut db = Db::memory().unwrap();
+        let moved = db.save_assets(&[json!({"id":"a1","embeddingModel":"m1","embedding":[0.5,-1.0]}), json!({"id":"a2"})]).unwrap();
+        assert!(moved);
+        assert!(db.load_all().unwrap()["assets"].as_array().unwrap().iter().all(|a| a.get("embedding").is_none()));
+        assert_eq!(db.embeddings("m1").unwrap(), vec![("a1".to_string(), vec![0.5, -1.0])]);
+        assert!(db.embeddings("other").unwrap().is_empty());
+        db.delete_assets(&["a1".into()]).unwrap();
+        assert!(db.embeddings("m1").unwrap().is_empty());
     }
 
     #[test]

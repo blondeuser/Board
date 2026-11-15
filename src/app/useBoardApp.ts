@@ -5,7 +5,7 @@ import { db } from '../backend'
 import { makeThumbnail } from '../items/importImage'
 import { gridLayout } from '../canvas/viewport'
 import { alignPatches, reorderZ, type AlignMode, type OrderMode } from '../canvas/arrange'
-import { analyseImage, embedText, setModelProgressListener } from '../categorize/style/classifier'
+import { analyseAsset, embedText, setModelProgressListener } from '../categorize/style/classifier'
 import { queryToPrompt, semanticMatches } from '../categorize/style/search'
 import { EMBEDDING_MODEL } from '../categorize/style/model'
 import { saveFile } from '../storage/saveFile'
@@ -615,12 +615,12 @@ export function useBoardApp() {
           try {
             const blob = (await db.thumb(id)) ?? (await db.blob(id))
             if (!blob) continue
-            const { types, embedding, detail } = await analyseImage(blob)
+            const { types, embedding, detail } = await analyseAsset(id, blob)
             // Never overwrite types the user already edited while we were working; only add space tags next to them.
             updateAssets([id], (a) => {
               const base = a.types ?? types
               const spaces = pickSpaces(base, detail).filter((t) => !base.includes(t))
-              return { ...a, embedding, embeddingModel: EMBEDDING_MODEL, spacesVersion: SPACES_VERSION, types: [...base, ...spaces] }
+              return { ...a, ...(embedding ? { embedding } : {}), embeddingModel: EMBEDDING_MODEL, spacesVersion: SPACES_VERSION, types: [...base, ...spaces] }
             })
           } catch {
             if (!warned.current) {
@@ -680,9 +680,12 @@ export function useBoardApp() {
     return out
   }, [placements, boards])
 
-  // Search by meaning: embed the query with CLIP and compare with every image's embedding.
+  // Search by meaning: embed the query and compare with every image's embedding (desktop: all of it happens in Rust).
   const [queryVec, setQueryVec] = useState<{ q: string; v: Float32Array } | null>(null)
   const [searchFailed, setSearchFailed] = useState(false)
+  const [desktopHits, setDesktopHits] = useState<Map<string, number>>(new Map())
+  // Desktop: results change as images finish analysis, so searching again when the count of analysed images changes.
+  const analysedCount = useMemo(() => (isDesktop() ? Object.values(assets).filter((a) => a.embeddingModel === EMBEDDING_MODEL).length : 0), [assets])
   const searchWarned = useRef(false)
   useEffect(() => {
     const q = query.trim()
@@ -692,7 +695,13 @@ export function useBoardApp() {
     }
     let stale = false
     const t = window.setTimeout(() => {
-      embedText(queryToPrompt(q))
+      const run = isDesktop()
+        ? import('../backend/api').then(({ searchMeaning }) => searchMeaning(queryToPrompt(q))).then((hits) => {
+            if (!stale) setDesktopHits(new Map(hits))
+            return new Float32Array(0) // the vector stays in Rust; the hits above are the result
+          })
+        : embedText(queryToPrompt(q))
+      run
         .then((v) => {
           if (stale) return
           setSearchFailed(false)
@@ -711,11 +720,11 @@ export function useBoardApp() {
       stale = true
       window.clearTimeout(t)
     }
-  }, [query, notify])
+  }, [query, notify, analysedCount])
 
   const semantic = useMemo(
-    () => (queryVec ? semanticMatches(queryVec.v, Object.values(assets).map((a) => ({ id: a.id, embedding: a.embeddingModel === EMBEDDING_MODEL ? a.embedding : undefined }))) : new Map<string, number>()),
-    [queryVec, assets],
+    () => (isDesktop() ? (queryVec ? desktopHits : new Map<string, number>()) : queryVec ? semanticMatches(queryVec.v, Object.values(assets).map((a) => ({ id: a.id, embedding: a.embeddingModel === EMBEDDING_MODEL ? a.embedding : undefined }))) : new Map<string, number>()),
+    [queryVec, assets, desktopHits],
   )
 
   /** True while the meaning-search for the current text is still being computed (the list shows the previous result meanwhile). */

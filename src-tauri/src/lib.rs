@@ -1,19 +1,26 @@
 // REMind desktop shell. The UI is the web build in ../dist; storage lives here (docs/RUST_BACKEND.md step 1).
 // Plugins: http (LIT Awards + link previews without CORS), dialog + fs (native Save), opener (system browser).
+mod analyze;
 mod color;
 mod db;
 mod files;
 mod import;
 
+use analyze::{Analyzer, Model, Scored, EMBEDDING_MODEL};
 use db::Db;
 use files::Files;
 use serde_json::Value;
-use std::sync::Mutex;
+use std::{collections::HashMap, path::PathBuf, sync::Mutex};
 use tauri::{ipc::Request, Manager, State};
 
 struct Store {
     db: Mutex<Db>,
     files: Files,
+    model_dir: PathBuf,
+    /// Loaded on first use (a second or so); None until then.
+    analyzer: Mutex<Option<Analyzer>>,
+    /// In-memory search index of current-model embeddings; None = rebuild from the database on next use.
+    index: Mutex<Option<HashMap<String, Vec<f32>>>>,
 }
 
 type Res<T> = Result<T, String>;
@@ -21,6 +28,16 @@ type Res<T> = Result<T, String>;
 impl Store {
     fn db(&self) -> Res<std::sync::MutexGuard<'_, Db>> {
         self.db.lock().map_err(|_| "database lock poisoned".to_string())
+    }
+    fn invalidate_index(&self) {
+        if let Ok(mut i) = self.index.lock() { *i = None }
+    }
+    fn analyzer(&self) -> Res<std::sync::MutexGuard<'_, Option<Analyzer>>> {
+        let mut a = self.analyzer.lock().map_err(|_| "analyzer lock poisoned".to_string())?;
+        if a.is_none() {
+            *a = Some(Analyzer::new(Model::load(&self.model_dir)?));
+        }
+        Ok(a)
     }
 }
 
@@ -31,7 +48,10 @@ fn load_all(s: State<Store>) -> Res<Value> { s.db()?.load_all() }
 #[tauri::command]
 fn save_boards(s: State<Store>, items: Vec<Value>) -> Res<()> { s.db()?.save_boards(&items) }
 #[tauri::command]
-fn save_assets(s: State<Store>, items: Vec<Value>) -> Res<()> { s.db()?.save_assets(&items) }
+fn save_assets(s: State<Store>, items: Vec<Value>) -> Res<()> {
+    if s.db()?.save_assets(&items)? { s.invalidate_index() }
+    Ok(())
+}
 #[tauri::command]
 fn save_placements(s: State<Store>, items: Vec<Value>) -> Res<()> { s.db()?.save_placements(&items) }
 #[tauri::command]
@@ -55,6 +75,7 @@ fn meta_set(s: State<Store>, key: String, value: String) -> Res<()> { s.db()?.me
 #[tauri::command]
 fn delete_assets(s: State<Store>, ids: Vec<String>) -> Res<()> {
     s.db()?.delete_assets(&ids)?;
+    s.invalidate_index();
     ids.iter().for_each(|id| s.files.remove_asset(id));
     Ok(())
 }
@@ -63,6 +84,7 @@ fn delete_assets(s: State<Store>, ids: Vec<String>) -> Res<()> {
 fn clear_all(s: State<Store>) -> Res<()> {
     let ids: Vec<String> = s.db()?.load_all()?["assets"].as_array().into_iter().flatten().filter_map(|a| a["id"].as_str().map(String::from)).collect();
     s.db()?.clear_all()?;
+    s.invalidate_index();
     ids.iter().for_each(|id| s.files.remove_asset(id));
     Ok(())
 }
@@ -81,7 +103,8 @@ fn add_asset(s: State<Store>, req: Request) -> Res<()> {
     if !thumb.is_empty() {
         Files::write(&s.files.thumb(&id, thumb_ext), thumb)?;
     }
-    s.db()?.save_assets(&[asset])
+    if s.db()?.save_assets(&[asset])? { s.invalidate_index() }
+    Ok(())
 }
 
 /// Replaces a thumbnail (older images get one lazily).
@@ -135,6 +158,52 @@ fn asset_paths(s: State<Store>, id: String) -> Vec<Option<String>> {
     vec![p(s.files.find_original(&id)), p(s.files.find_thumb(&id))]
 }
 
+#[derive(serde::Serialize)]
+struct Analysis {
+    scores: Vec<Scored>,
+    detail: Vec<Scored>,
+}
+
+/// Embeds the stored image (the vector stays in Rust: database + search index) and returns the zero-shot scores the UI
+/// turns into type tags. `spaces` = (prompt, parent) pairs.
+#[tauri::command]
+async fn analyze_asset(app: tauri::AppHandle, s: State<'_, Store>, id: String, types: Vec<String>, spaces: Vec<(String, String)>) -> Res<Analysis> {
+    // Thumbnail first (it is what the TS pipeline analysed); fall back to the original.
+    let path = s.files.find_thumb(&id).or_else(|| s.files.find_original(&id)).ok_or("image file not found")?;
+    let work = tauri::async_runtime::spawn_blocking({
+        let app = app.clone();
+        move || -> Res<(Vec<f32>, Analysis)> {
+            let s = app.state::<Store>();
+            let img = import::decode(&std::fs::read(&path).map_err(|e| e.to_string())?)?;
+            let mut guard = s.analyzer()?;
+            let (emb, scores, detail) = guard.as_mut().unwrap().analyze(&img, &types, &spaces)?;
+            Ok((emb, Analysis { scores, detail }))
+        }
+    });
+    let (emb, analysis) = work.await.map_err(|e| e.to_string())??;
+    s.db()?.put_embedding(&id, EMBEDDING_MODEL, &emb)?;
+    if let Some(index) = s.index.lock().map_err(|_| "index lock poisoned")?.as_mut() {
+        index.insert(id, emb);
+    }
+    Ok(analysis)
+}
+
+/// Search by meaning: [(asset id, score)], best first. `prompt` is already "a photo of ...".
+#[tauri::command]
+async fn search_meaning(app: tauri::AppHandle, prompt: String) -> Res<Vec<(String, f32)>> {
+    tauri::async_runtime::spawn_blocking(move || -> Res<Vec<(String, f32)>> {
+        let s = app.state::<Store>();
+        let q = s.analyzer()?.as_mut().unwrap().embed_text(&prompt)?;
+        let mut index = s.index.lock().map_err(|_| "index lock poisoned".to_string())?;
+        if index.is_none() {
+            *index = Some(s.db()?.embeddings(EMBEDDING_MODEL)?.into_iter().collect());
+        }
+        Ok(analyze::search::matches(&q, index.as_ref().unwrap()))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -146,13 +215,17 @@ pub fn run() {
             let root = app.path().app_data_dir()?;
             std::fs::create_dir_all(&root)?;
             let db = Db::open(&root.join("board.sqlite"))?;
-            app.manage(Store { db: Mutex::new(db), files: Files(root.join("library")) });
+            // Bundled model (installer resources); a dev run from the repo falls back to the checked-out copy.
+            let rel = "resources/models/siglip-base-patch16-224";
+            let model_dir = app.path().resolve(rel, tauri::path::BaseDirectory::Resource)?;
+            let model_dir = if model_dir.join("tokenizer.json").exists() { model_dir } else { PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(rel) };
+            app.manage(Store { db: Mutex::new(db), files: Files(root.join("library")), model_dir, analyzer: Mutex::new(None), index: Mutex::new(None) });
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             load_all, save_boards, save_assets, save_placements, save_connections, save_categories, delete_board,
             delete_assets, delete_placements, delete_connections, delete_category, clear_all, add_asset, save_thumb, import_image,
-            asset_paths, meta_get, meta_set
+            asset_paths, meta_get, meta_set, analyze_asset, search_meaning
         ])
         .run(tauri::generate_context!())
         .expect("error while running REMind");

@@ -69,3 +69,15 @@ export const api: Backend = {
   saveCategories: save('save_categories'),
   deleteCategory: (id) => invoke('delete_category', { id }),
 }
+
+export interface Scored {
+  label: string
+  score: number
+}
+
+/** Rust embeds the stored image (vector stays in Rust) and returns zero-shot scores. `spaces` = [prompt, parent] pairs. */
+export const analyzeAsset = (id: string, types: string[], spaces: [string, string][]) =>
+  invoke<{ scores: Scored[]; detail: Scored[] }>('analyze_asset', { id, types, spaces })
+
+/** Search by meaning in Rust: [asset id, score], best first. */
+export const searchMeaning = (prompt: string) => invoke<[string, number][]>('search_meaning', { prompt })

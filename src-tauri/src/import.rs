@@ -1,6 +1,5 @@
 // Image import core (docs/RUST_BACKEND.md step 2): hash, decode (EXIF-rotated), 1280px thumbnail, palette + colour families.
 // No Tauri types, so `cargo test` covers it.
-// shortcut: resizing uses image's CatmullRom filter, not fast_image_resize; switch if import speed measures too slow.
 use crate::color::{color_families, extract_palette};
 use image::{imageops::FilterType, DynamicImage, ImageDecoder, ImageFormat, ImageReader};
 use serde_json::{json, Value};
@@ -20,8 +19,42 @@ pub struct Analyzed {
     pub thumb: (String, Vec<u8>),
 }
 
+/// Downscale so the long side is `max` (SIMD, CatmullRom). Images with transparency go through the slower `image` filter,
+/// which handles alpha correctly.
+fn shrink(img: DynamicImage, max: u32) -> DynamicImage {
+    use fast_image_resize::{images::Image, FilterType as F, PixelType, ResizeAlg, ResizeOptions, Resizer};
+    let (w, h) = (img.width(), img.height());
+    if w.max(h) <= max {
+        return img;
+    }
+    let scale = max as f64 / w.max(h) as f64;
+    let (dw, dh) = (((w as f64 * scale).round() as u32).max(1), ((h as f64 * scale).round() as u32).max(1));
+    if img.color().has_alpha() {
+        return img.resize(max, max, FilterType::CatmullRom);
+    }
+    let rgb = img.to_rgb8();
+    let done = Image::from_vec_u8(w, h, rgb.into_raw(), PixelType::U8x3).ok().and_then(|src| {
+        let mut dst = Image::new(dw, dh, PixelType::U8x3);
+        Resizer::new().resize(&src, &mut dst, &ResizeOptions::new().resize_alg(ResizeAlg::Convolution(F::CatmullRom))).ok()?;
+        image::RgbImage::from_raw(dw, dh, dst.into_vec())
+    });
+    match done {
+        Some(out) => DynamicImage::ImageRgb8(out),
+        None => img.resize(max, max, FilterType::CatmullRom), // never lose an import to the fast path
+    }
+}
+
 pub fn sha256_hex(bytes: &[u8]) -> String {
     Sha256::digest(bytes).iter().map(|b| format!("{b:02x}")).collect()
+}
+
+/// Decode with EXIF rotation applied.
+pub fn decode(bytes: &[u8]) -> Result<DynamicImage, String> {
+    let mut decoder = ImageReader::new(Cursor::new(bytes)).with_guessed_format().map_err(|e| e.to_string())?.into_decoder().map_err(|e| e.to_string())?;
+    let orientation = decoder.orientation().map_err(|e| e.to_string())?;
+    let mut img = DynamicImage::from_decoder(decoder).map_err(|e| e.to_string())?;
+    img.apply_orientation(orientation);
+    Ok(img)
 }
 
 pub fn analyze(bytes: &[u8]) -> Result<Analyzed, String> {
@@ -41,7 +74,9 @@ pub fn analyze(bytes: &[u8]) -> Result<Analyzed, String> {
     img.apply_orientation(orientation);
     let (width, height) = (img.width(), img.height());
 
-    let small = img.resize(64, 64, FilterType::Triangle).to_rgba8();
+    // One big downscale (to the 1280px display size); the palette is taken from that, not from the full 12 MP image.
+    let display = shrink(img, THUMB_MAX);
+    let small = display.resize(64, 64, FilterType::Triangle).to_rgba8();
     let palette = extract_palette(small.as_raw(), small.width() as usize, small.height() as usize, 5);
     let colors = color_families(&palette);
     let palette = Value::Array(palette.iter().map(|p| json!({"hex": p.hex, "share": p.share})).collect());
@@ -50,7 +85,7 @@ pub fn analyze(bytes: &[u8]) -> Result<Analyzed, String> {
     let thumb = if width.max(height) <= THUMB_MAX && orientation == image::metadata::Orientation::NoTransforms && ext != "bmp" {
         (ext.to_string(), bytes.to_vec())
     } else {
-        let t = if width.max(height) > THUMB_MAX { img.resize(THUMB_MAX, THUMB_MAX, FilterType::CatmullRom) } else { img };
+        let t = display;
         let mut out = Cursor::new(Vec::new());
         if t.color().has_alpha() && t.to_rgba8().pixels().any(|p| p.0[3] < 255) {
             t.write_to(&mut out, ImageFormat::Png).map_err(|e| e.to_string())?;
@@ -101,5 +136,36 @@ mod tests {
     #[test]
     fn garbage_is_an_error() {
         assert!(analyze(b"not an image").is_err());
+    }
+}
+
+/// Timing probe: `cargo test --release bench_import -- --ignored --nocapture`.
+#[cfg(test)]
+mod bench {
+    use super::*;
+    use std::time::Instant;
+
+    #[test]
+    #[ignore]
+    fn bench_import() {
+        // A 12 MP photo-like JPEG (smooth gradients plus texture), as a phone or camera would make.
+        let img = image::RgbImage::from_fn(4000, 3000, |x, y| {
+            let n = ((x * 7 + y * 13) % 29) as u8;
+            image::Rgb([(x / 16) as u8 ^ n, (y / 12) as u8 ^ n, ((x + y) / 24) as u8 ^ n])
+        });
+        let mut jpg = Cursor::new(Vec::new());
+        image::codecs::jpeg::JpegEncoder::new_with_quality(&mut jpg, 90).encode_image(&img).unwrap();
+        let bytes = jpg.into_inner();
+        println!("input: {} KB 4000x3000 jpeg", bytes.len() / 1024);
+        analyze(&bytes).unwrap();
+        let t = Instant::now();
+        for _ in 0..5 { analyze(&bytes).unwrap(); }
+        println!("import analyze (decode + thumb + palette + hash): {:?} per 12 MP image", t.elapsed() / 5);
+        let t = Instant::now();
+        for _ in 0..5 { sha256_hex(&bytes); }
+        println!("  of which sha256: {:?}", t.elapsed() / 5);
+        let t = Instant::now();
+        for _ in 0..5 { decode(&bytes).unwrap(); }
+        println!("  of which decode: {:?}", t.elapsed() / 5);
     }
 }

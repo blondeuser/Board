@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "REMind",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "identifier": "com.remstudio.remind",
   "build": {
     "frontendDist": "../dist",
@@ -57,6 +57,9 @@
         "installMode": "currentUser",
         "displayLanguageSelector": false
       }
-    }
+    },
+    "resources": [
+      "resources/models/**/*"
+    ]
   }
 }

@@ -2,7 +2,7 @@
 
 Living status. **Update at the end of every work session.** Rules live in `CLAUDE.md`, business logic in `MEMORY.md`.
 
-_Last updated: 2026-11-15 (v0.2.0 built)_
+_Last updated: 2026-11-15 (v0.3.0, step 3)_
 
 ## Status
 
@@ -15,7 +15,7 @@ _Last updated: 2026-11-15 (v0.2.0 built)_
 
 ## Resume here (next session)
 
-**Rust backend progress (2026-11-15):** step 1 (SQLite + files + migration) and step 2 (import) are built and in 0.2.0; step 0 is only partly done (storage is behind `src/backend/`, `useBoardApp.ts` not split). **Next: install 0.2.0 over a real 0.1.x library and check the migration**, record the baseline/import timings, then step 3 (bundled SigLIP + `ort`), step 4 (`.bo` in Rust).
+**Rust backend progress (2026-11-15):** step 1 (SQLite + files + migration) and step 2 (import) are built and in 0.2.0; step 0 is only partly done (storage is behind `src/backend/`, `useBoardApp.ts` not split). Step 3 (bundled SigLIP, CPU) is in 0.3.0 too. **Next: install 0.3.0 over a real 0.1.x library and check the migration**, run `eval-search` against the Rust path, record timings (import, analysis/image, search), try DirectML, then step 4 (`.bo` in Rust).
 
 **Decided 2026-11-15: Rust backend, desktop only.** Plan in `docs/RUST_BACKEND.md` (roadmap §8). Before the pen work or alongside it: step 0 (split `useBoardApp.ts` behind a `Backend` interface, update `docs/SQLITE_SCHEMA.md`, record baseline numbers), then step 1 (SQLite + files + IndexedDB migration, v0.2.0). Ship v0.1.1 first as planned below.
 
@@ -122,7 +122,7 @@ _Last updated: 2026-11-15 (v0.2.0 built)_
 - [~] Step 0 (storage interface done, hook split not): split `useBoardApp.ts` by domain behind a `Backend` interface; `docs/SQLITE_SCHEMA.md` matches `types.ts` (shapes, connections, `spacesVersion`); baseline numbers (start, import 100, analysis/image, search, drag 12)
 - [x] Step 1 (v0.2.0, built; migration untested on a real library): `rusqlite` + migrations, file store, asset protocol for thumbs, `src/backend/api.ts` + `fake.ts`, today's TS backend moved to `src/backend/browser/` as the frozen browser dev mode, one-time IndexedDB → SQLite migration with count check (IndexedDB kept as safety net)
 - [x] Step 2 (built 2026-11-15; `.bo`/drag-drop paths and timings pending): import pipeline in Rust (hash, dedupe, decode, thumb, palette; `rayon`); drop/paste/LIT/`.bo` share one entry point; `dragDropEnabled` on
-- [ ] Step 3: bundled SigLIP ONNX + `ort` (DirectML/CoreML, CPU fallback) + `tokenizers`; parity check vs transformers.js; analysis queue + search in Rust; remove worker + `@huggingface/transformers`
+- [~] Step 3 (built 2026-11-15, CPU only; parity 0.996+; GPU, timings and removing the worker pending): bundled SigLIP ONNX + `ort` (DirectML/CoreML, CPU fallback) + `tokenizers`; parity check vs transformers.js; analysis queue + search in Rust; remove worker + `@huggingface/transformers`
 - [ ] Step 4: `.bo` read/write in Rust; opens TS-written `.bo` fixtures
 - [ ] Step 5: remove IndexedDB code (after one safety release), tighten CSP
 - [ ] Any time (TS): canvas drag/pan without per-move React state; batch analysis results so the app re-renders once per batch
@@ -133,7 +133,7 @@ _Last updated: 2026-11-15 (v0.2.0 built)_
 - Type detection is approximate (zero-shot): similar types blur (UI design vs screenshot, logo vs typography). Keeps up to 2 types above a confidence threshold; thresholds in `pickTypes`.
 - `classify.worker.ts` scores types with softmax at a fixed scale of 100, not SigLIP's own `logit_scale`/`logit_bias` + sigmoid. Acceptable for single-choice Type; wrong for multi-label Lighting (labels would compete). Add a sigmoid path when lighting starts.
 - Search thresholds (`SEARCH_FLOOR` 0.025, `SEARCH_WINDOW` 0.03) were tuned on 15 photos; re-tune with a bigger library.
-- Model (~210 MB) and ONNX wasm load from huggingface.co / cdn.jsdelivr.net on first use: first run needs internet. Fixed by bundling in the Tauri step.
+- Browser dev mode only: model (~210 MB) and ONNX wasm load from huggingface.co / cdn.jsdelivr.net on first use. The desktop app bundles the model (0.3.0).
 - Pasting/dropping an image URL only works if the host allows CORS; otherwise a message asks you to save the file and drop it.
 - LIT import works only under `npm run dev` / `vite preview` (the `/__lit` proxy); a static build shows "needs the dev server". Fixed by the Tauri HTTP step.
 - LIT parsers read the site's HTML with regexes: a redesign of litawards.com breaks them. Symptom: "No winners found" or projects with 0 photos. Fix: save fresh pages into `tests/fixtures/lit/`, adjust `parse.ts` until `tests/lit.test.ts` passes.
@@ -170,6 +170,17 @@ _Last updated: 2026-11-15 (v0.2.0 built)_
 | 2026-11-14 | Imported images carry `Asset.source` (link, title, categories, credit, details) instead of auto-creating custom categories | 68 award categories per year would flood the sidebar; source data stays searchable and groupable (Award tab) and keeps photographer credits |
 
 ## Log
+
+### 2026-11-15 (Rust backend: optimisation pass, measured)
+- Numbers (release build, this PC: RTX 3090; `cargo test --release bench -- --ignored --nocapture` and `bench_import`): **analysis q8 on CPU 44-49 ms/image** (about 22 images/s; a 3,700-photo LIT year in ~3 min); model load 1.1 s warm, 4.7 s cold. **Import of a 12 MP JPEG: 232 ms before, 112 ms after** (palette now taken from the 1280px display copy instead of the full image; thumbnail resize through `fast_image_resize`, SIMD; decode is now 77 ms of the 112; sha256 2 ms). JS fires imports in parallel and each runs in its own blocking task, so several cores are used already.
+- **DirectML tried and rejected for now:** the q8 model crashes the process (access violation) with DirectML; the fp16 model works and runs at **9.2 ms/image on the 3090 (5x faster)** but is 330 MB (vs 210), and is slower on CPU (56 ms), and the system `DirectML.dll` is too old, so the app would have to ship its own copy (a crash on any PC where that goes wrong). 45 ms/image on CPU is fast enough, so GPU stays off. Revisit if libraries reach tens of thousands of images; then ship fp16 + `DirectML.dll` beside the exe with a CPU fallback and a new `EMBEDDING_MODEL` id. `fast_image_resize` crate added (approved).
+- Remaining ideas, not done: batch several images per model call (little gain on CPU), `lto = "fat"` + `codegen-units = 1` in the release profile, moving the UI-side lag fixes (drag/pan React state, per-result re-render). `cargo test` 23 pass. Not committed; not rebuilt as an installer.
+
+### 2026-11-15 (Rust backend: step 3, bundled SigLIP in Rust, v0.3.0)
+- `src-tauri/src/analyze/{mod,search}.rs`: `ort` 2.0.0-rc.15 (CPU, ONNX Runtime linked statically) runs the bundled q8 SigLIP vision + text models; `tokenizers` **0.22** (the 1.0 rc has a different API) with padding to 64 using pad id 1 (`</s>`, SigLIP's pad, not `[PAD]`). Image preprocessing = plain 2x2 bilinear sampling at pixel centres, no pre-filter (what the browser canvas did in the old pipeline; the q8 model reacts to the resize: CatmullRom gave cosine 0.98, bilinear 0.996). **Parity vs the TS pipeline (browser worker): image cosine 0.996-0.998 on 7 images, text 0.999+** (gate was > 0.99). `scripts/make-siglip-fixtures.mjs` makes the reference from the real app (needs the dev server); fixtures in `tests/fixtures/siglip/` (OpenCV sample photos + icon).
+- Embeddings live in a new `embeddings` table (migration 2) and an in-memory index in Rust; they are stripped from the asset JSON (old libraries / the browser backend that send `embedding` get them moved automatically). New commands `analyze_asset` (embeds the stored thumbnail, stores the vector, returns type/space scores; the vector never crosses IPC) and `search_meaning` (query embed + floor/window match in Rust). UI: `classifier.analyseAsset` and the `useBoardApp` search effect use them on desktop (`isDesktop()`); browser dev mode keeps the worker path.
+- Model files are not in git (`scripts/fetch-model.mjs` downloads ~210 MB into `src-tauri/resources/models/`, gitignored); `bundle.resources` ships them. **Release build: NSIS 170 MB, MSI 184 MB (version 0.3.0).** Checked: `cargo test` 23 pass (incl. parity), typecheck, 59 tests; `tauri dev` and the **release exe**: drop 6 photos, types detected, plain-language search correct (fruit, butterfly, monkey, a man, a plant, starry night sky; "dragon" still returns the nearest images, a known weakness), no console errors; model load ~1.5 s on the first search.
+- **Not done / not checked:** DirectML/CoreML (CPU only, no timing numbers vs the old WASM path yet), an `eval-search` precision run on the Rust path, `.bo` image import and LIT through the new analysis (they share `autoTag`, unverified), transformers.js + worker not removed (browser dev mode needs them), a PC without Windows' DirectML.dll (ort puts it beside the exe but the installer does not bundle it), installing over a real 0.1.x/0.2.0 library.
 
 ### 2026-11-15 (v0.2.0 build, Help > About)
 - Version 0.1.1 → 0.2.0 in `package.json`, `tauri.conf.json`, `Cargo.toml` (storage moved to SQLite). `npm run tauri build` OK (release, ~2 min): `src-tauri/target/release/bundle/nsis/REMind_0.2.0_x64-setup.exe` (8.85 MB) + MSI (10.35 MB; ship NSIS only). New **Help > About REMind** dialog shows the version (from `package.json` via `vite.config.ts` `define`, `src/shared/version.ts`) and the build date. Checked: typecheck, 59 tests, `cargo test` 16, About dialog in the browser build, `tauri dev` import/dedupe/persist via `scripts/smoke-desktop.mjs` (start the app with `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222`). **Not yet checked:** installing 0.2.0 over a real 0.1.x library (IndexedDB → SQLite migration), the installed app itself, LIT import/paste/`.bo` on the desktop. Back up `%LOCALAPPDATA%com.remstudio.remind` before the first upgrade.
