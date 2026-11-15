@@ -27,6 +27,8 @@ interface Props {
   urls: Record<string, string>
   /** Page address per asset id, for images that came from a link or a site import (shows the link badge). */
   links: Record<string, string>
+  /** assetId → page title, shown as a caption on link cards. */
+  titles: Record<string, string>
   selection: string[]
   /** Bento mode: cards are auto-placed, so moving/resizing is off. */
   locked: boolean
@@ -403,6 +405,7 @@ export function Canvas(props: Props) {
             p={p}
             url={urls[p.assetId]}
             href={props.links[p.assetId]}
+            title={props.titles[p.assetId]}
             selected={selection.includes(p.id)}
             dimmed={props.dimmed(p)}
             ring={props.ring(p)}
@@ -434,6 +437,7 @@ interface ItemProps {
   p: Placement
   url?: string
   href?: string
+  title?: string
   selected: boolean
   dimmed: boolean
   ring: string
@@ -442,7 +446,7 @@ interface ItemProps {
   onEditNote: (id: string, text: string) => void
 }
 
-const Item = memo(function Item({ p, url, href, selected, dimmed, ring, locked, editing, onEditNote }: ItemProps) {
+const Item = memo(function Item({ p, url, href, title, selected, dimmed, ring, locked, editing, onEditNote }: ItemProps) {
   const note = p.kind === 'note'
   const shape = p.kind === 'shape'
   const ink = p.kind === 'ink' && p.ink
@@ -479,6 +483,7 @@ const Item = memo(function Item({ p, url, href, selected, dimmed, ring, locked, 
       ) : (
         url && <img src={url} alt="" draggable={false} />
       )}
+      {href && title && <span className="link-title">{title}</span>}
       {href && (
         <span className="link-badge" data-link={href} title={`Open ${href}`}>
           <LinkIcon />

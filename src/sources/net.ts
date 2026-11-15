@@ -24,7 +24,7 @@ async function plainFetch(url: string, init: Record<string, unknown>): Promise<R
 }
 
 /** GET with manual redirects (max 4 hops); each hop must be http(s) on a public host. */
-export async function fetchPublic(start: string, accept: string, signal?: AbortSignal): Promise<Response> {
+export async function fetchPublic(start: string, accept: string, signal?: AbortSignal, referer?: string): Promise<Response> {
   let url = new URL(start)
   for (let hop = 0; hop < 5; hop++) {
     if (!/^https?:$/.test(url.protocol) || !isPublicHost(url.hostname)) throw new NetError('That address is not a public web page.')
@@ -32,7 +32,7 @@ export async function fetchPublic(start: string, accept: string, signal?: AbortS
       method: 'GET',
       redirect: 'manual',
       maxRedirections: 0,
-      headers: { 'user-agent': 'Mozilla/5.0 (compatible; REMind/0.1 link preview)', accept },
+      headers: { 'user-agent': 'Mozilla/5.0 (compatible; REMind/0.1 link preview)', accept, ...(referer ? { referer } : {}) },
       signal,
     })
     const loc = res.headers.get('location')

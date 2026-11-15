@@ -59,3 +59,24 @@ function safeHost(url: string): string | undefined {
     return undefined
   }
 }
+
+/** YouTube video id from a watch / youtu.be / shorts / embed address, or undefined. YouTube serves no preview tags to apps, but its thumbnails have a fixed address. */
+export function youtubeId(url: string): string | undefined {
+  try {
+    const u = new URL(url)
+    const host = u.hostname.replace(/^(www|m)\./, '')
+    const id = host === 'youtu.be' ? u.pathname.slice(1) : host === 'youtube.com' ? (u.searchParams.get('v') ?? /^\/(?:shorts|embed|live)\/([^/?]+)/.exec(u.pathname)?.[1]) : undefined
+    return id && /^[\w-]{11}$/.test(id) ? id : undefined
+  } catch { return undefined }
+}
+
+/** A readable title made from the address, for pages that have none: the last path segment ("the-basilica-cistern" → "The basilica cistern"), else the site name. */
+export function titleFromUrl(url: string): string {
+  try {
+    const u = new URL(url)
+    const slug = decodeURIComponent(u.pathname.split('/').filter(Boolean).pop() ?? '').replace(/\.[a-z0-9]{2,5}$/i, '')
+    const words = slug.replace(/[-_+]+/g, ' ').replace(/\s+/g, ' ').trim()
+    if (words.length >= 3 && !/^\d+$/.test(words)) return words.charAt(0).toUpperCase() + words.slice(1)
+    return u.hostname.replace(/^www\./, '')
+  } catch { return url }
+}

@@ -18,6 +18,7 @@ Project docs, one job each:
 | `docs/PEN_INPUT.md` | Wacom / pen drawing on the canvas: input, ink data model, rendering, phases | Pen or ink behaviour, stroke format or phases change |
 | `docs/PINTEREST.md` | Pinterest window + drag-to-board: options, steps, fallbacks, spike results | A Pinterest step, the drop handling or its permissions change |
 | `docs/STORAGE.md` | Where the library and cache live on disk, moving the library, Clear cache, Settings → Storage, start-up rules | Folder layout, `settings.json`, the move/verify flow or the Settings tab change |
+| `docs/COLOR_TEMPERATURE.md` | Apparent CCT per image: Kelvin landmarks, bin edges, estimation method, stored fields, UI, eval | Landmarks, thresholds, the method or the stored `cct` fields change |
 
 Read a `docs/` file only when the task touches it.
 

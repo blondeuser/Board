@@ -66,9 +66,12 @@ export function Library({ app, showTags, onDropData, onDelete }: { app: BoardApp
   /** Link badge on images that came from a web page; opens the page. */
   const badge = (a: Asset) =>
     a.source?.url && /^https?:\/\//i.test(a.source.url) ? (
-      <span className="link-badge" title={`Open ${a.source.url}`} onClick={(e) => { e.stopPropagation(); void openExternal(a.source!.url) }}>
-        <LinkIcon />
-      </span>
+      <>
+        {a.source.title && <span className="link-title">{a.source.title}</span>}
+        <span className="link-badge" title={a.source.title ? `${a.source.title}\nOpen ${a.source.url}` : `Open ${a.source.url}`} onClick={(e) => { e.stopPropagation(); void openExternal(a.source!.url) }}>
+          <LinkIcon />
+        </span>
+      </>
     ) : null
   /** A note or text box as a card, sitting in the grid among the images. */
   const noteCard = (a: LibItem) => {

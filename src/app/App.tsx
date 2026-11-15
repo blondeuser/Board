@@ -192,6 +192,12 @@ export function App() {
     for (const a of Object.values(assets)) if (a.source?.url && /^https?:\/\//i.test(a.source.url)) out[a.id] = a.source.url
     return out
   }, [assets])
+  /** Page titles of images that came from a web link, shown on their cards. */
+  const titles = useMemo(() => {
+    const out: Record<string, string> = {}
+    for (const a of Object.values(assets)) if (a.source?.title && a.source.url && /^https?:\/\//i.test(a.source.url)) out[a.id] = a.source.title
+    return out
+  }, [assets])
   const bentoItems = useMemo(
     () => boardPlacements.filter((p) => p.kind !== 'shape' && p.kind !== 'ink' && p.kind !== 'text').map((p) => ({ id: p.id, x: p.x, y: p.y, w: p.w, h: p.h, kind: p.kind === 'note' ? 'note' as const : 'image' as const, textLength: p.text?.length })),
     [boardPlacements],
@@ -320,6 +326,7 @@ export function App() {
           onEditNote={app.editNote}
           urls={app.urls}
           links={links}
+          titles={titles}
           selection={app.selection}
           ring={(p) => (showTags && p.assetId ? tagRing(app.assets[p.assetId], app.categories, 'var(--inv)') : '')}
           dimmed={(p) => filtering && (p.kind === 'note' || p.kind === 'shape' || p.kind === 'ink' || p.kind === 'text' || !app.matches(p.assetId))}

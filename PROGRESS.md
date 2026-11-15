@@ -2,7 +2,7 @@
 
 Living status. **Update at the end of every work session.** Rules live in `CLAUDE.md`, business logic in `MEMORY.md`.
 
-_Last updated: 2026-11-15 (Mac: .bo drop, Finder open, icon)_
+_Last updated: 2026-11-15 (v0.8.0: link titles on cards, link loading fixes)_
 
 ## Status
 
@@ -92,7 +92,7 @@ _Last updated: 2026-11-15 (Mac: .bo drop, Finder open, icon)_
 - [ ] Auto-grouping / clusters
 - [ ] Lighting-technique detection as a new tag group beside Type and Colour. Research done 2026-11-14 (see `MEMORY.md`, label candidates + prompts in `docs/LIGHTING_TAXONOMY.md`). Steps: final label list -> reference photos -> zero-shot eval with **sigmoid** scoring -> (if weak) logistic-regression probe on stored SigLIP embeddings + brightness-gradient/evenness/contrast features -> add tag group only if precision is good
 - [ ] Lighting corrections: confirm / reject / add a lighting label in the inspector; user labels stored separately from model labels and always win; they become training rows for the probe
-- [ ] Warm / neutral / cool hint from the palette (see `MEMORY.md` Colour) + filter
+- [ ] Colour temperature (apparent CCT, landmarks 2200-6000K, Mixed / Coloured / Unknown), desktop only: plan in `docs/COLOR_TEMPERATURE.md`, waiting for go-ahead to code
 - [ ] Vietnamese search: test SigLIP 2 (multilingual) if an ONNX build works in transformers.js; re-run `eval-search.mjs` before switching
 - [ ] Extra abilities (e.g. OCR for text in images) as separate lazy-loaded models, each in its own `models/<id>/` folder
 
@@ -159,6 +159,7 @@ _Last updated: 2026-11-15 (Mac: .bo drop, Finder open, icon)_
 
 | Date | Decision | Why |
 |---|---|---|
+| 2026-11-15 | Library sorted by **apparent CCT** in Kelvin landmarks (2200/2700/3000/3500/4000/5000/6000K), estimated from pixels (not SigLIP), mired-midpoint bin edges, Mixed = main landmark + flag, and anything below 2200K / above 6000K is Mixed too, desktop (Rust) only. Plan `docs/COLOR_TEMPERATURE.md` | Lighting designers think in landmark CCTs; SigLIP is weak with numbers; mired steps match what the eye sees. Shown as "≈" because white balance and grading shift photos |
 | 2026-11-15 | The whole library (originals + `board.sqlite`) can be moved to another **local** drive from Settings → Storage; thumbnails and WebView cache live in a separate, clearable cache folder; network drives refused for the library. Plan `docs/STORAGE.md` | Import copies every image (2,000 photos ≈ 8 GB) into Roaming on C:; "clear" can only safely mean rebuildable data, so the space saving comes from moving, not deleting. SQLite over SMB risks corruption |
 | 2026-11-15 | Pinterest comes in through a Pinterest window inside REMind (signed in as me) with drag and drop onto the board; no official API, no paid scraper. Bulk "Grab this board" later, separate approval. Internal use only. Plan `docs/PINTEREST.md` | API search is closed (own pins only; partner search is beta, top 10); own-board import via API needs Business account + developer app + approval, too cumbersome; scrapers break and are against Pinterest's terms |
 | 2026-11-15 | Backend moves to Rust (`src-tauri/`): SQLite + files, import, SigLIP via `ort`, search, `.bo`. UI stays React in the webview. Browser build not shipped but kept as a local dev mode (`npm run dev`, frozen TS backend, amended same day); model bundled in the installer; crates approved: rusqlite, image, fast_image_resize, sha2, rayon, zip, serde, ort, tokenizers. Plan `docs/RUST_BACKEND.md` | Speed on big libraries (LIT ~3,700 photos), native GPU inference, files on disk, offline first run. Replaces "browser build first" (2026-11-14) |
@@ -197,8 +198,15 @@ _Last updated: 2026-11-15 (Mac: .bo drop, Finder open, icon)_
 ### 2026-11-15 (Mac build config)
 - `tauri.conf.json`: added bundle targets `app` + `dmg` and a `macOS` block (`signingIdentity: "-"` ad-hoc, `minimumSystemVersion` 13.0). The SigLIP model needed no change: `bundle.resources` already has `resources/models/**/*` and `lib.rs` resolves it via `BaseDirectory::Resource`. `docs/MAC_BUILD.md` §2 corrected (it said the model was not bundled) and `node scripts/fetch-model.mjs` added to the Mac setup. **Not done:** no Mac build run, model files not fetched on the Mac, resource path inside the `.app` unchecked, Mac checks (shortcuts, pen, Pinterest panel, `.bo` association) still open. Not committed.
 
+### 2026-11-15 (plan: colour temperature)
+- Planned apparent-CCT sorting by Kelvin landmarks: new `docs/COLOR_TEMPERATURE.md`; `MEMORY.md` Colour rule changed (Kelvin landmarks shown as "≈", replaces warm/neutral/cool hint); roadmap §4 line updated; doc table in `CLAUDE.md`. No code changed.
+
 ### 2026-11-15 (v0.7.0: mouse draws as a pen, release build)
 - Pen toolbar has a **Mouse draws** button (`mouseInk` in `App.tsx` / `Canvas.tsx`, `MouseIcon`): with pen mode on, the mouse and touch draw ink instead of editing items (left button only, steady pressure 0.8, the eraser button still wins). Off by default, not remembered between sessions. Typecheck clean; not checked with a real Wacom or touch screen. Version 0.7.0 in package.json, tauri.conf.json, Cargo.toml, write.ts.
+
+### 2026-11-15 (v0.8.0: link titles on cards, link loading fixes)
+- Pasting a link failed with "Couldn't load the page's preview image" on apple.com, a YouTube link, an article and vnexpress.net. From outside the app all of those pages and images load fine (checked with the same user agent), so the cause is in the desktop fetch path and **was not reproduced** (the dev app would not start with a debugging port: WebView2 "group or resource is not in the correct state", other WebView2 processes held the data folder). Changes made anyway, in `src/sources/link/`: the image request sends the page address as `Referer` (`fetchPublic` got a `referer` argument); the image is recognised by its first bytes (`sniffImageType`) instead of trusting Content-Type; errors now say why (HTTP status / network / format); YouTube gets a thumbnail from the video id (`youtubeId`, `i.ytimg.com/vi/<id>/hqdefault.jpg`) and its title from oEmbed; every link gets a title (`titleFromUrl` fallback). `scripts/probe-link.mjs` runs `loadLink` inside a running desktop app (needs `--remote-debugging-port=9222`).
+- **Title caption** on link cards: board (`Item` in `Canvas.tsx`, scales with zoom) and Library cells; `.link-title` in `styles.css`. Only links added after this version have a title if the page had none. 85 TS tests pass (new: sniff, youtube id, title from url). Not checked: whether the original failure is gone in the installed app. Version 0.8.0.
 
 ### 2026-11-15 (v0.7.1: bug check, optimisations, release build)
 - Code check of 0.7.0 (typecheck, 82 TS tests, 38 cargo tests, clippy: style warnings only). Fixed: `Files::find` tried a full folder listing per image lookup (O(n²) over a library; now tries the usual extensions first); Pinterest panel layout could still reserve the panel's width after closing (`layout(app, show_panel)`); the panel resize drag sent an IPC call per mouse move (now one per animation frame). Known, left: a DB write already waiting on the lock when a library move starts can land in the old library; `import_bo` reopens the zip once per image (slow on huge boards); erase is not undoable; the Mouse-draws toggle does not reset when the pen turns off. Version 0.7.1 in package.json, tauri.conf.json, Cargo.toml, write.ts.
