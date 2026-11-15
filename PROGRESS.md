@@ -179,6 +179,9 @@ _Last updated: 2026-11-15 (v0.6.0: storage location + cache + Settings)_
 
 ## Log
 
+### 2026-11-15 (v0.6.0 release build)
+- Version 0.6.0 in package.json, tauri.conf.json, Cargo.toml, write.ts (`c2a9aa7`). `npm run tauri build` (2 min compile): `REMind_0.6.0_x64-setup.exe` (170.7 MiB, NSIS; ship this one) and `REMind_0.6.0_x64_en-US.msi` (185 MiB). 82 TS tests + 41 cargo tests pass. Includes Pinterest panel, .bo progress pill, partial eraser, Settings > Storage. **Not tried:** installing over 0.5.0 and the first-start thumbnail move, a real library move to another drive, Pinterest drag spike.
+
 ### 2026-11-15 (library location, cache, Settings built)
 - Rust: `settings.rs` (settings.json, atomic, unknown keys kept), `storage.rs` (resolve paths, marker `remind-library.json`, target checks, move = SQLite backup + hashed file copy + integrity/row-count verify + switch, delete old library, cache move, one-time thumbnail move, clear + rebuild thumbnails), `Files` now has separate originals and thumbs roots (+ legacy thumbs fallback), asset-protocol scope widened at start-up, `Db::backup_to/integrity_ok/row_counts`, `rusqlite` feature `backup`. A `moving` flag makes every DB call fail during a copy. Commands: `storage_info`, `move_library`, `cancel_move`, `delete_old_library`, `set_cache_dir`, `clear_cache`, `locate_library`, `use_default_library`; events `storage-progress`, `thumbs-progress`. UI: `Settings.tsx`, `LibraryMissing.tsx`, Edit menu. 4 new cargo tests (move + delete old, refused targets + cancel, missing library, thumbnails) and 1 settings test pass; typecheck clean; the app starts and writes the marker + cache folder. Not done: WebView-cache clear, drive-type/free-space checks, lock file, Delete-old confirm names the size only. Not tried with real images (the dev library was empty). Not committed.
 
