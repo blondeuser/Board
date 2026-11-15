@@ -38,6 +38,8 @@ interface Props {
   penMode: boolean
   /** Pen mode's eraser button: any pointer (pen, mouse, touch) erases strokes instead of drawing. */
   eraseMode?: boolean
+  /** Pen mode: the mouse (and touch) draws ink too, instead of editing items. */
+  mouseInk?: boolean
   pen: { color: string; size: number }
   /** A finished stroke: absolute world points [x, y, pressure, ...], line width in world units. */
   onInk: (stroke: { points: number[]; color: string; size: number }) => void
@@ -162,6 +164,12 @@ export function Canvas(props: Props) {
         return
       }
     }
+    if (p.penMode && p.mouseInk && e.pointerType !== 'pen' && e.button === 0 && !panning && !p.locked) {
+      e.preventDefault()
+      drag.current = { kind: 'ink', pts: [], last: null }
+      inkTo(e, drag.current)
+      return
+    }
     if (panning) {
       e.preventDefault()
       e.currentTarget.style.cursor = 'grabbing'
@@ -222,7 +230,7 @@ export function Canvas(props: Props) {
     const events = e.nativeEvent.getCoalescedEvents?.() ?? []
     for (const ev of events.length ? events : [e.nativeEvent]) {
       const w = worldOf(ev)
-      const pr = ev.pressure > 0 ? ev.pressure : 0.5 // pressure 0 = no pressure reported
+      const pr = ev.pointerType !== 'pen' ? 0.8 : ev.pressure > 0 ? ev.pressure : 0.5 // mouse has no pressure: steady 0.8; a pen reporting 0 = no pressure
       d.pts.push(w.x, w.y, pr)
       if (!ctx) continue
       const r = viewportRef.current!.getBoundingClientRect()

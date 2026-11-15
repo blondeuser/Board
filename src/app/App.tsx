@@ -15,7 +15,7 @@ import { Inspector } from '../ui/Inspector'
 import type { ShapeKind } from '../shared/types'
 import { Library } from '../library/Library'
 import { PinterestButton } from '../ui/PinterestHandle'
-import { BentoIcon, DiamondIcon, EllipseIcon, FitIcon, LinkIcon, RectIcon, TriangleIcon, MinusIcon, NoteIcon, PenIcon, EraserIcon, TagIcon, TextIcon, PlusIcon } from '../ui/icons'
+import { BentoIcon, DiamondIcon, EllipseIcon, FitIcon, LinkIcon, RectIcon, TriangleIcon, MinusIcon, NoteIcon, PenIcon, EraserIcon, MouseIcon, TagIcon, TextIcon, PlusIcon } from '../ui/icons'
 
 function confirmDelete(app: BoardApp, assetIds: string[]) {
   const boards = new Set(app.allPlacements.filter((p) => assetIds.includes(p.assetId)).map((p) => p.boardId)).size
@@ -56,6 +56,7 @@ export function App() {
   }
   const [penMode, setPenMode] = useState(false)
   const [eraseMode, setEraseMode] = useState(false)
+  const [mouseInk, setMouseInk] = useState(false)
   const [pen, setPen] = useState(() => {
     try { return { color: 'auto', size: 4, ...JSON.parse(localStorage.getItem('board.pen') ?? '{}') } } catch { return { color: 'auto', size: 4 } }
   })
@@ -304,6 +305,7 @@ export function App() {
           tool={tool}
           penMode={penMode}
           eraseMode={eraseMode}
+          mouseInk={mouseInk}
           pen={pen}
           onInk={app.addInk}
           onEraseInk={app.eraseInk}
@@ -342,6 +344,7 @@ export function App() {
                 <button key={n} className={'pen-size' + (pen.size === n ? ' on' : '')} title={'Line ' + n} aria-label={'Line size ' + n} onClick={() => setPen({ ...pen, size: n })}><i style={{ width: n + 2, height: n + 2 }} /></button>
               ))}
               <button className={'icon' + (eraseMode ? ' on' : '')} title="Eraser: touch a stroke to remove it" aria-pressed={eraseMode} onClick={() => setEraseMode(!eraseMode)}><EraserIcon /></button>
+              <button className={'icon' + (mouseInk ? ' on' : '')} title="Mouse draws: use the mouse (or touch) as a pen" aria-pressed={mouseInk} onClick={() => setMouseInk(!mouseInk)}><MouseIcon /></button>
             </>
           )}
           <hr />

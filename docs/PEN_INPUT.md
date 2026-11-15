@@ -53,6 +53,7 @@ Everything comes through the standard **Pointer Events** API; no Wacom SDK, no R
 | Pen | Pressure → width (perfect-freehand), solid colour |
 | Marker | Constant width, round, slightly translucent |
 | Highlighter | Wide, `mix-blend-mode: multiply`, ~40% opacity; for marking up photos |
+| Mouse as pen | **Built 2026-11-15:** toolbar "Mouse draws" toggle (pen mode only); mouse/touch then ink with steady pressure 0.8 |
 | Eraser | **Built 2026-11-15: partial eraser.** Touching a stroke cuts out the part within the brush radius (pen size, min 6 px on screen) and keeps the rest as separate strokes (`erasePoints` in `stroke.ts`, `eraseInk` in `useBoardApp.ts`). Toolbar eraser button in pen mode + the stylus eraser end. No eraser cursor ring yet |
 | Lasso | Pen-drawn loop selects strokes *and* cards inside it; then move/delete/recolour as usual |
 

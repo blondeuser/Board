@@ -1,6 +1,6 @@
 [package]
 name = "remind"
-version = "0.6.0"
+version = "0.7.0"
 description = "REMind: a local-first moodboard and photo library"
 authors = ["REM Studio"]
 license = ""
