@@ -14,6 +14,8 @@ Project docs, one job each:
 | `docs/BO_FORMAT.md` | The `.bo` board file spec | The file format changes (bump `formatVersion`) |
 | `docs/LIGHTING_TAXONOMY.md` | Lighting-technique label set, prompts, eval method | Labels, prompts or thresholds change |
 | `docs/SQLITE_SCHEMA.md` | Planned SQLite schema for the Tauri step | Before / during the storage migration |
+| `docs/RUST_BACKEND.md` | Rust backend plan: what moves to Rust, layout, IPC rules, migration, steps | The backend design or a step changes |
+| `docs/PEN_INPUT.md` | Wacom / pen drawing on the canvas: input, ink data model, rendering, phases | Pen or ink behaviour, stroke format or phases change |
 
 Read a `docs/` file only when the task touches it.
 
@@ -23,7 +25,7 @@ Read a `docs/` file only when the task touches it.
 - **End of a session (or after each finished task):** update `PROGRESS.md` (tick tasks, dated log entry with commit hash, "Last updated"); record new rules/decisions in `MEMORY.md`.
 - If code and `MEMORY.md` disagree, find out which is right before changing either.
 - Run tests and typecheck before every commit; commit in small steps.
-- Stack is scaffolded (2026-11-14). Confirm with me before adding heavy dependencies (canvas engine, ML runtime). Tauri 2 + its http/dialog/fs plugins approved 2026-11-15 for the Windows demo installer; the opener plugin (system-browser links) was added with it, so tell me before adding any other plugin.
+- Stack is scaffolded (2026-11-14). Confirm with me before adding heavy dependencies (canvas engine, ML runtime). Tauri 2 + its http/dialog/fs plugins approved 2026-11-15 for the Windows demo installer; the opener plugin (system-browser links) was added with it, so tell me before adding any other plugin. Rust crates approved 2026-11-15 for the Rust backend (`docs/RUST_BACKEND.md`): `rusqlite` (bundled), `image`, `fast_image_resize`, `sha2`, `rayon`, `zip`, `serde`/`serde_json`, `ort`, `tokenizers`; ask before any other crate.
 
 ## Environment
 
@@ -45,8 +47,11 @@ Read a `docs/` file only when the task touches it.
 
 ## Stack (proposed)
 
+**Moving to a Rust backend (decided 2026-11-15, `docs/RUST_BACKEND.md`):** desktop only; storage, import, analysis, search and `.bo` move into `src-tauri/`, the UI stays React in the webview. Lines below describe the current TS code until each step lands; update them as it does.
+
 - TypeScript, Vite, React.
 - Canvas: custom DOM + CSS transform (`src/canvas/`); tldraw/Konva only if the 500-image perf check fails (see PROGRESS decisions).
+- Pen / ink (planned, `docs/PEN_INPUT.md`): Pointer Events only (`pointerType`, `pressure`, `buttons`, coalesced events), no Wacom SDK. Pure stroke geometry in `src/canvas/ink/`; the stroke in progress draws on a screen-space `<canvas>` overlay (refs, no React state per sample), committed strokes are `Placement` kind `ink` rendered as SVG paths. Store raw points + pressure, never the outline. Outline library `perfect-freehand` is proposed, not approved yet.
 - The image model (SigLIP, `src/categorize/style/model.ts`) runs in a Web Worker (`classify.worker.ts`) via `@huggingface/transformers`; it makes the type tags and the search embeddings. Model files (~210 MB) download from the Hugging Face hub on first use (images never leave the machine). After changing the model or search thresholds, run `node scripts/eval-search.mjs <photo folders>` (precision check on real photos) and `node scripts/smoke-search.mjs <folders>`; changing the model needs a new `EMBEDDING_MODEL` id so old embeddings are recomputed.
 - State: one hook, `src/app/useBoardApp.ts` (plus `useLitImport.ts` for the LIT import, which uses its public functions only); storage currently IndexedDB (`src/storage/db.ts`), the only file that touches it. React StrictMode runs effects twice: keep updaters pure and guard one-time init.
 - Desktop shell: Tauri 2 (small, same code on Windows + macOS); browser build stays runnable for fast iteration.
@@ -76,7 +81,7 @@ scripts/        dev scripts (kept in repo, not %TEMP%)
 public/         static assets
 ```
 
-Desktop vs browser: code checks one helper (`isDesktop()`, Tauri present) and never sniffs the OS. In the desktop app, network calls in `sources/` use the Tauri HTTP plugin and file saves use the dialog + fs plugins (from `storage/`); the browser build keeps the dev proxies and browser downloads. Both builds must keep working. Desktop capabilities (http scope blocks private/local addresses, dialog, fs write, opener) live in `src-tauri/capabilities/default.json`; the CSP is `null` for now (model hub, CDN, blob workers and wasm), tighten it before anything beyond a demo. Icons: `scripts/make-icon.mjs` draws `src-tauri/icon-source.png`, `npx tauri icon` makes the set.
+Desktop vs browser: code checks one helper (`isDesktop()`, Tauri present) and never sniffs the OS. In the desktop app, network calls in `sources/` use the Tauri HTTP plugin and file saves use the dialog + fs plugins (from `storage/`); the browser build keeps the dev proxies and browser downloads. Both builds must keep working: after step 1 of `docs/RUST_BACKEND.md` the browser build is a dev mode only (frozen TS backend in `src/backend/browser/`, chosen by `isDesktop()`, never in the desktop bundle); UI work may be done there, but storage/import/model work is checked in `npm run tauri dev`. Desktop capabilities (http scope blocks private/local addresses, dialog, fs write, opener) live in `src-tauri/capabilities/default.json`; the CSP is `null` for now (model hub, CDN, blob workers and wasm), tighten it before anything beyond a demo. Icons: `scripts/make-icon.mjs` draws `src-tauri/icon-source.png`, `npx tauri icon` makes the set.
 
 Rules: `sources/` parsers are pure (HTML string in, data out, tested on saved pages in `tests/fixtures/`); their network calls go through one `get()` per source so the Tauri HTTP plugin can replace the dev-server proxy (`/__lit` in `vite.config.ts`, which forwards only the LIT hosts). `shared/` imports nothing from the app; `categorize/` is pure (image in, tags/palette/embedding out) and never touches the UI or DB; `storage/` is the only code that touches disk/DB. `.bo` read/write lives in `storage/bo/` and nowhere else.
 

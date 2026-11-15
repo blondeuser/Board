@@ -2,7 +2,7 @@
 
 Living status. **Update at the end of every work session.** Rules live in `CLAUDE.md`, business logic in `MEMORY.md`.
 
-_Last updated: 2026-11-15 (v0.1.1: version bump, release rules)_
+_Last updated: 2026-11-15 (plan: Rust backend)_
 
 ## Status
 
@@ -14,6 +14,10 @@ _Last updated: 2026-11-15 (v0.1.1: version bump, release rules)_
 | **Hosting**       | GitHub `blondeuser/Board` (public). Latest code commit `2c5a6ff` |
 
 ## Resume here (next session)
+
+**Decided 2026-11-15: Rust backend, desktop only.** Plan in `docs/RUST_BACKEND.md` (roadmap §8). Before the pen work or alongside it: step 0 (split `useBoardApp.ts` behind a `Backend` interface, update `docs/SQLITE_SCHEMA.md`, record baseline numbers), then step 1 (SQLite + files + IndexedDB migration, v0.2.0). Ship v0.1.1 first as planned below.
+
+**Next stage (after the v0.1.1 build/test below): Wacom pen drawing in freeform mode.** Plan in `docs/PEN_INPUT.md`. Start with Phase 0 (spike: log pen pointer data on Windows with Windows Ink on/off, in Edge and the installed app, then on the MacBook in `npx tauri dev`), then Phase 1 undo/redo. Before coding Phase 2, answer the open questions in `docs/PEN_INPUT.md` §9 (pen mode vs always-draw, barrel button, approve `perfect-freehand`).
 
 **Next build is v0.1.1** (version already bumped in `package.json`, `tauri.conf.json`, `Cargo.toml`): it carries the LIT import fix. `npm run tauri build`, then run `src-tauri/target/release/bundle/nsis/REMind_0.1.1_x64-setup.exe` over the installed 0.1.0 (upgrade in place; library should survive: check). Then test LIT import and paste-a-link. Use the NSIS installer only from now on.
 
@@ -104,6 +108,23 @@ _Last updated: 2026-11-15 (v0.1.1: version bump, release rules)_
 - [ ] Keep the entry description (it often names techniques: grazing, wall washer, uplight) for search and as weak lighting labels
 - [ ] Other reference sites behind the same `sources/<site>/` shape (parse + client + source), e.g. IALD, Darc awards, archdaily lighting tag
 
+### 7. Pen drawing (Wacom), planned 2026-11-15 — `docs/PEN_INPUT.md`
+- [ ] Phase 0 spike: pointer log overlay; check `pointerType`/`pressure`/`tilt`/`buttons`/coalesced events with the Wacom on Windows (Windows Ink on and off; Edge + installed app) and macOS (WKWebView); record results in `docs/PEN_INPUT.md` §1
+- [ ] Phase 1 undo/redo: command stack for all canvas edits, Ctrl/Cmd+Z, Shift+Ctrl/Cmd+Z, Ctrl+Y
+- [ ] Phase 2 basic ink: pen mode toggle (`P`), pen tool with pressure, live canvas overlay + SVG commit, colours/sizes, stroke eraser + eraser end, select/move/delete strokes, `Placement` kind `ink` + IndexedDB migration, hidden in Cards mode
+- [ ] Phase 3: `.bo` formatVersion 2 (ink + connections), board JPEG export draws ink, perf check 500 photos + 2,000 strokes
+- [ ] Phase 4 brainstorm tools: marker, highlighter, lasso, Shift straight line, barrel-button pan, brush cursor, pressure-curve setting, "turn on Windows Ink" hint
+- [ ] Phase 5 extras (pick after use): light brush, arrows, attach ink to an image + annotated export, shape recognition, tilt, partial eraser, sketch frames, macOS native pressure plugin if WKWebView has none
+
+### 8. Rust backend (desktop only), planned 2026-11-15 — `docs/RUST_BACKEND.md`
+- [ ] Step 0: split `useBoardApp.ts` by domain behind a `Backend` interface; `docs/SQLITE_SCHEMA.md` matches `types.ts` (shapes, connections, `spacesVersion`); baseline numbers (start, import 100, analysis/image, search, drag 12)
+- [ ] Step 1 (v0.2.0): `rusqlite` + migrations, file store, asset protocol for thumbs, `src/backend/api.ts` + `fake.ts`, today's TS backend moved to `src/backend/browser/` as the frozen browser dev mode, one-time IndexedDB → SQLite migration with count check (IndexedDB kept as safety net)
+- [ ] Step 2: import pipeline in Rust (hash, dedupe, decode, thumb, palette; `rayon`); drop/paste/LIT/`.bo` share one entry point; `dragDropEnabled` on
+- [ ] Step 3: bundled SigLIP ONNX + `ort` (DirectML/CoreML, CPU fallback) + `tokenizers`; parity check vs transformers.js; analysis queue + search in Rust; remove worker + `@huggingface/transformers`
+- [ ] Step 4: `.bo` read/write in Rust; opens TS-written `.bo` fixtures
+- [ ] Step 5: remove IndexedDB code (after one safety release), tighten CSP
+- [ ] Any time (TS): canvas drag/pan without per-move React state; batch analysis results so the app re-renders once per batch
+
 ## Backlog and known issues
 
 - Search by meaning is approximate: people queries return people ("the man" also returns some women), a query with no match can still return the nearest-looking image ("dragon" -> cat). Thresholds in `src/categorize/style/search.ts` (SEARCH_FLOOR/WINDOW), tuned on a small photo set only.
@@ -120,6 +141,7 @@ _Last updated: 2026-11-15 (v0.1.1: version bump, release rules)_
 - Reported lag when selecting ~12 photos: could not reproduce headless (150 fps, ~3ms/frame main-thread; `scripts/perf.mjs`). Thumbnails shipped as the likely fix (decoded size 48MB -> 5MB per 12MP photo). Needs confirming on the real machine; if it persists, ask for monitor/GPU + photo sizes and profile in Edge DevTools Performance.
 - Not yet checked on macOS / Safari; only Edge via Playwright.
 - Browser extension / mobile capture (later).
+- Pen pressure (from research, unverified on my hardware): Chromium/WebView2 reads Wacom pressure only with "Use Windows Ink" on (no WinTab support); Safari/WebKit on macOS reports a Wacom pen as `mouse`, so the Mac desktop app may get no pen detection and maybe no pressure. Phase 0 spike checks both.
 - Desktop app storage: until the SQLite step, the Tauri app keeps using IndexedDB inside WebView2 (its own app-data folder). It starts with an **empty library**: boards made in the browser build (`localhost:5173`) don't carry over; move them with `.bo` export/import.
 - Mixed installers: an MSI install and an NSIS install of the same app can sit side by side as two apps. Ship NSIS only; if a PC has the 0.1.0 MSI, uninstall it first (keep app data).
 - The NSIS uninstaller has a "delete application data" checkbox: ticking it wipes the library.
@@ -129,6 +151,8 @@ _Last updated: 2026-11-15 (v0.1.1: version bump, release rules)_
 
 | Date | Decision | Why |
 |---|---|---|
+| 2026-11-15 | Backend moves to Rust (`src-tauri/`): SQLite + files, import, SigLIP via `ort`, search, `.bo`. UI stays React in the webview. Browser build not shipped but kept as a local dev mode (`npm run dev`, frozen TS backend, amended same day); model bundled in the installer; crates approved: rusqlite, image, fast_image_resize, sha2, rayon, zip, serde, ort, tokenizers. Plan `docs/RUST_BACKEND.md` | Speed on big libraries (LIT ~3,700 photos), native GPU inference, files on disk, offline first run. Replaces "browser build first" (2026-11-14) |
+| 2026-11-15 | Pen drawing uses Pointer Events only (no Wacom SDK); strokes are `Placement` kind `ink` (raw points + pressure), live stroke on a canvas overlay, committed as SVG; undo/redo first. Proposed, open questions in `docs/PEN_INPUT.md` §9 | Reuses selection/z-order/copy/`.bo` for free; vector stays crisp at any zoom; Pointer Events work in WebView2 and the browser build |
 | 2026-11-15 | Release rules: NSIS installer only, bump the version in `package.json` + `tauri.conf.json` + `Cargo.toml` for every build handed out, identifier never changes; manual updates until the Tauri updater + GitHub Releases | Upgrades in place keep the library; the MSI won't reinstall the same version; mixing MSI/NSIS gives two installs |
 | 2026-11-15 | First demo ships as a Windows installer built with Tauri 2 (unsigned `.msi` / `-setup.exe`), ahead of the SQLite step; storage stays IndexedDB for the demo | Demo PC needs no Node; Tauri was already the chosen shell. SQLite, offline model and file association follow as separate steps |
 | 2026-11-14 | Canvas is custom (DOM + CSS transform), not tldraw/Konva | Only needs images + pan/zoom/drag; no dependency, easy to swap later. Re-evaluate in the 500-image perf check |
@@ -144,6 +168,15 @@ _Last updated: 2026-11-15 (v0.1.1: version bump, release rules)_
 | 2026-11-14 | Imported images carry `Asset.source` (link, title, categories, credit, details) instead of auto-creating custom categories | 68 award categories per year would flood the sidebar; source data stays searchable and groupable (Award tab) and keeps photographer credits |
 
 ## Log
+
+, step 1 Rust half)
+- `src-tauri/src/db.rs` (rusqlite bundled, `user_version` migrations, JSON-document tables for boards/assets/placements/connections/categories, same delete rules as `db.ts`), `files.rs` (originals/thumbs by asset id, atomic writes, id sanitising, add_asset body framing), `lib.rs` (thin commands: load_all, save_*, delete_*, add_asset raw body, save_thumb, asset_paths, meta). Crates added: `rusqlite`, `serde_json` (both approved). `cargo test`: 9 pass. **Wired up later the same day (see next entry)**: step 0 (split `useBoardApp.ts`) not done, no IndexedDB migration, asset protocol not enabled, `npm run tauri dev` not run. Deviates from `docs/SQLITE_SCHEMA.md` (JSON `data` columns instead of normalised tables; embeddings stay in the asset JSON until step 3); doc not updated yet. Not committed.
+
+### 2026-11-15 (plan: Rust backend)
+- Reviewed the code for performance. Rust helps for model inference (WASM → native ONNX Runtime + GPU) and import/storage on disk; not for k-means, hashing or search maths. Found two TS-side causes of lag: drag/pan set React state on every pointer move; each analysis result re-renders the whole app. Decided: Rust backend, desktop only, model bundled, crates approved; then amended: `npm run dev` in the browser stays as a dev mode on the frozen TS backend. New `docs/RUST_BACKEND.md`; roadmap §8, decision, `MEMORY.md`, `CLAUDE.md` updated. No code changed; not committed.
+
+### 2026-11-15 (plan: Wacom pen drawing)
+- Brainstormed pen input for freeform mode; full plan in new `docs/PEN_INPUT.md` (platform facts + risks, interaction, data model, rendering, code layout, phases 0-5, tests, open questions). Roadmap §7, decision, known issue added; `MEMORY.md` product decision + ink domain rule; `docs/BO_FORMAT.md` notes formatVersion 2; `CLAUDE.md` docs table + stack line. No code changed; not committed.
 
 ### 2026-11-15 (v0.1.1: version bump, release rules)
 - Version 0.1.0 → 0.1.1 in `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` for the build carrying the LIT import fix. Release/upgrade rules written to `CLAUDE.md` ("Releases and updates"), decision in `MEMORY.md`, auto-update + code signing tasks in roadmap §5, upgrade pitfalls in known issues. Fixed a garbled `%USERPROFILE%\.cargo\bin` path in `CLAUDE.md`. Not built yet; not committed.

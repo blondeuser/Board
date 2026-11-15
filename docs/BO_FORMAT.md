@@ -57,6 +57,9 @@ placements with `kind`, `assetId`, `text`, `tint`, `x`, `y`, `w`, `h`, `z`). `bo
 5. If `embeddingModel` ≠ current `EMBEDDING_MODEL`, ignore `embeddings.bin`; the normal backfill re-embeds.
 6. Unknown fields are ignored; unknown lighting labels become plain categories.
 
+## Planned: formatVersion 2 (pen ink)
+`board.json` placements may have `kind: "ink"` with an `ink` object (tool, colour, size, raw points `[x, y, pressure, …]`, `w0`/`h0`); no asset. Readers that only know v1 would draw them as broken images, so ink files are `formatVersion: 2`. The same bump adds `connections.json` (`Connection[]`, lines between cards; today they are lost on save). Details: `docs/PEN_INPUT.md` §3.
+
 ## Code
 All of this lives in `src/storage/bo/` (`write.ts`, `read.ts`, `migrate.ts`) and nothing else touches the ZIP.
 If `.bo` ever needs to become a custom binary (privacy or lazy-loading huge boards), only this folder and `formatVersion` change.

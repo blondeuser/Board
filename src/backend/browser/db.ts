@@ -1,4 +1,4 @@
-import type { Asset, Board, Category, Connection, Placement } from '../shared/types'
+import type { Asset, Board, Category, Connection, Placement } from '../../shared/types'
 
 // IndexedDB for the browser build. Swapped for SQLite + files in the Tauri step (see PROGRESS).
 const DB_NAME = 'board'
@@ -101,7 +101,7 @@ export const db = {
   blob: (id: string) => tx(['blobs'], 'readonly', (t) => wrap(t.objectStore('blobs').get(id) as IDBRequest<Blob | undefined>)),
 
   thumb: (id: string) => tx(['thumbs'], 'readonly', (t) => wrap(t.objectStore('thumbs').get(id) as IDBRequest<Blob | undefined>)),
-  saveThumb: (id: string, blob: Blob) => tx(['thumbs'], 'readwrite', (t) => t.objectStore('thumbs').put(blob, id)),
+  saveThumb: (id: string, blob: Blob) => tx(['thumbs'], 'readwrite', (t) => void t.objectStore('thumbs').put(blob, id)),
 
   placements: () => getAll<Placement>('placements'),
   savePlacements: (p: Placement[]) => putAll('placements', p),
@@ -115,5 +115,5 @@ export const db = {
 
   categories: () => getAll<Category>('categories'),
   saveCategories: (c: Category[]) => putAll('categories', c),
-  deleteCategory: (id: string) => tx(['categories'], 'readwrite', (t) => t.objectStore('categories').delete(id)),
+  deleteCategory: (id: string) => tx(['categories'], 'readwrite', (t) => void t.objectStore('categories').delete(id)),
 }

@@ -1,5 +1,7 @@
 # Planned SQLite schema (Tauri step)
 
+> 2026-11-15: implemented as JSON-document tables (`src-tauri/src/db.rs`), not the normalised tables below; embeddings stay in the asset JSON until step 3. Now owned by the Rust backend (`rusqlite`, `docs/RUST_BACKEND.md`), not the Tauri SQL plugin; search runs in Rust, not JS. Before step 1, bring this in line with `src/shared/types.ts`: placement `kind` `shape` + `shape` column, a `connections` table, `assets.spaces_version`.
+
 Replaces IndexedDB (`src/storage/db.ts`) when Board moves into Tauri. Mirrors `src/shared/types.ts`; adds what the roadmap needs
 (content hash, lighting labels, import sources, migrations). Originals and thumbnails are **files** in the app-data folder, not blobs in the DB:
 

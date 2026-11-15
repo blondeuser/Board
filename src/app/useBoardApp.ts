@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { NOTE_GREYS, NOTE_H, NOTE_TINTS, NOTE_W, noteHeight, type Asset, type AssetSource, type Board, type Category, type Connection, type Placement, type ShapeKind, type ViewState } from '../shared/types'
 import { newId } from '../shared/id'
-import { db } from '../storage/db'
+import { db } from '../backend'
 import { importImage, makeThumbnail } from '../items/importImage'
 import { gridLayout } from '../canvas/viewport'
 import { alignPatches, reorderZ, type AlignMode, type OrderMode } from '../canvas/arrange'
