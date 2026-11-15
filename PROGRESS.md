@@ -171,6 +171,21 @@ _Last updated: 2026-11-15 (v0.4.0: pen ink, text, .bo in Rust, CSP)_
 
 ## Log
 
+### 2026-11-15 (Library: notes, text and link badges)
+- **Check result:** the Library listed only images; notes and text boxes (placements on boards) never appeared, and images imported from a web page showed no link indicator. **Now (revised: no separate section):** notes and text boxes are cards **in the same grid as the images**, sorted by date with them (All tab: DD/MM/YY sections; Tag/Type/Colour/Award tabs: they sit in the "No tag" / "No type" / "No colour" sections). New notes and text get a `createdAt` (new optional Placement field); older ones use their board's date. Note cards show the note colour (or the text in its own font and weight) and the board name; clicking opens the board with the item selected; they are not selectable/deletable from the Library. Hidden while searching or filtering (they have no tags). Images from a link or site import get the **link badge** (top-left, opens the page) in the Library grid like on the canvas. Browser-checked with a note + a text box (cards show, click opens the board and selects it); the link badge is typed and compiled but **not seen on screen** (needs an image with a source URL). Not done: search over note text, note preview tiles in the Type/Colour/Award stacks, Library select/delete for notes. Not committed.
+
+### 2026-11-15 (Library date sections per day)
+- Library All tab: one section per **day**, labelled **DD/MM/YY** (was one per month, MM/YY), newest first. Test updated (4 group tests pass), typecheck clean. Not looked at in the window. Not committed.
+
+### 2026-11-15 (Colour as a menu)
+- The sidebar Colour swatches moved into a **Colour** menu (between Type and Tags): the 12 families with their real library shade as a dot and a check mark, a count badge in the title, and **Clear All Filters** at the bottom (it was the sidebar "Clear" link; it clears colour, type and tag filters). Sidebar now only has Library, Boards and the theme toggle (pinned to the bottom). Browser-checked: filter on/off and the badge; typecheck clean. `scripts/smoke.mjs` already fails on a stale "New category" title (not from this change). Not committed.
+
+### 2026-11-15 (tag borders)
+- Images with tags get a **border in their tag colours** (up to 3 rings, first tag innermost) on the board and in the Library. A switch turns it on/off: **View > Tag Borders** or the tag button next to Cards mode (default on, remembered per viewer in localStorage). Pure helper `src/library/ring.ts` (3 tests); on the canvas the ring keeps a constant on-screen width at any zoom. Browser-checked: ring present with a tag, back to normal when switched off. 81 tests, typecheck clean. **Not done:** a tag-filter highlight (filters still fade non-matches); the ring is under the blue selection outline while a card is selected; not tried in the Tauri window. Not committed.
+
+### 2026-11-15 (menus: View, Board, Tags)
+- **View** menu: Freeform / Card / Library view (check mark on the current one). New **Board** menu: switch boards, New Board. **Categories renamed to Tags** in the UI (menu, inspector, library "Tag" grouping, "No tag" section, delete prompt); stored names unchanged, LIT award categories keep their name. Typecheck clean, 78 tests; browser-checked View and Board menus. Not committed.
+
 ### 2026-11-15 (About credit)
 - Help > About REMind now shows "Created by REMSTUDIO © 2026" plus links to rem-design.co and Instagram @rem_thecreator (open in the system browser). Typecheck clean; not in an installer yet (0.4.0 was built before this).
 

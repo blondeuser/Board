@@ -108,6 +108,8 @@ export interface Placement {
   id: string
   boardId: string
   kind?: 'image' | 'note' | 'shape' | 'ink' | 'text'
+  /** When a note or text box was made (shown in the Library's date sections); older ones fall back to their board's date. */
+  createdAt?: number
   /** Look of a text item, for `kind: 'text'` (the words are in `text`; w/h is its box, text wraps at w). */
   fmt?: TextFormat
   /** Pen stroke, for `kind: 'ink'`. x/y/w/h is its bounding box; points are relative to x/y. */

@@ -1,8 +1,9 @@
 import { isDesktop } from '../shared/desktop'
 import { openExternal } from '../shared/external'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { BoardApp } from '../app/useBoardApp'
 import { ALL_TYPE_LABELS } from '../categorize/style/labels'
+import { COLOR_FAMILIES, familyShades } from '../categorize/color'
 import { APP_VERSION, BUILD_DATE } from '../shared/version'
 import { PenTest } from './PenTest'
 import { CloseIcon, SidebarIcon } from './icons'
@@ -26,7 +27,9 @@ interface Item {
 }
 
 /** A macOS-style menu bar: click a title to open it, hover to move between open menus, Esc or a click elsewhere closes. */
-export function MenuBar({ app, sidebarOpen, onToggleSidebar, onLitImport }: { app: BoardApp; sidebarOpen: boolean; onToggleSidebar: () => void; onLitImport: () => void }) {
+export type ViewKind = 'free' | 'cards' | 'library'
+
+export function MenuBar({ app, sidebarOpen, onToggleSidebar, onLitImport, view, onShowView, showTags, onToggleTags }: { app: BoardApp; sidebarOpen: boolean; onToggleSidebar: () => void; onLitImport: () => void; view: ViewKind; onShowView: (v: ViewKind) => void; showTags: boolean; onToggleTags: () => void }) {
   const [open, setOpen] = useState<string | null>(null)
   const [about, setAbout] = useState(false)
   const [penTest, setPenTest] = useState(false)
@@ -42,12 +45,20 @@ export function MenuBar({ app, sidebarOpen, onToggleSidebar, onLitImport }: { ap
   const typeItems: (Item | 'sep')[] = ALL_TYPE_LABELS.filter((t) => used.has(t.id)).map((t) => ({
     label: t.name, checked: filter.types.includes(t.id), keepOpen: true, run: () => app.toggleFilter('types', t.id),
   }))
+  // Swatches show the library's real colour for each family (falls back to the family's base colour when nothing is in it).
+  const shades = useMemo(() => familyShades(Object.values(app.assets).map((a) => a.palette)), [app.assets])
+  const hasFilter = filter.colors.length + filter.categories.length + filter.types.length > 0
+  const colourItems: (Item | 'sep')[] = [
+    ...COLOR_FAMILIES.map((c): Item => ({ label: c.name[0].toUpperCase() + c.name.slice(1), dot: shades.get(c.name) ?? c.hex, checked: filter.colors.includes(c.name), keepOpen: true, run: () => app.toggleFilter('colors', c.name) })),
+    'sep',
+    { label: 'Clear All Filters', disabled: !hasFilter, run: app.clearFilter },
+  ]
   const categoryItems: (Item | 'sep')[] = categories.map((c) => ({
     label: c.name, dot: c.color, checked: filter.categories.includes(c.id), keepOpen: true, run: () => app.toggleFilter('categories', c.id),
-    remove: () => { if (confirm(`Delete category "${c.name}"? Images keep their other tags.`)) app.removeCategory(c.id) },
+    remove: () => { if (confirm(`Delete tag "${c.name}"? Images keep everything else.`)) app.removeCategory(c.id) },
   }))
   if (categoryItems.length) categoryItems.push('sep')
-  categoryItems.push({ label: 'New Category…', run: () => { const name = prompt('Category name'); if (name?.trim()) app.addCategory(name.trim()) } })
+  categoryItems.push({ label: 'New Tag…', run: () => { const name = prompt('Tag name'); if (name?.trim()) app.addCategory(name.trim()) } })
 
   const menus: { title: string; badge?: number; items: (Item | 'sep')[] }[] = [
     {
@@ -66,17 +77,33 @@ export function MenuBar({ app, sidebarOpen, onToggleSidebar, onLitImport }: { ap
         {
           label: 'Clear Everything…',
           run: () => {
-            if (confirm('Delete ALL boards, images, notes and categories from this browser? This cannot be undone. Boards saved as .bo files are not affected.')) void app.clearAll()
+            if (confirm('Delete ALL boards, images, notes and tags from this browser? This cannot be undone. Boards saved as .bo files are not affected.')) void app.clearAll()
           },
         },
       ],
     },
     {
       title: 'View',
-      items: [{ label: sidebarOpen ? 'Hide Sidebar' : 'Show Sidebar', keys: `${mod}\\`, run: onToggleSidebar }],
+      items: [
+        { label: 'Freeform View', checked: view === 'free', run: () => onShowView('free') },
+        { label: 'Card View', checked: view === 'cards', run: () => onShowView('cards') },
+        { label: 'Library View', checked: view === 'library', run: () => onShowView('library') },
+        'sep',
+        { label: 'Tag Borders', checked: showTags, run: onToggleTags },
+        { label: sidebarOpen ? 'Hide Sidebar' : 'Show Sidebar', keys: `${mod}\\`, run: onToggleSidebar },
+      ],
+    },
+    {
+      title: 'Board',
+      items: [
+        ...app.boards.map((b): Item => ({ label: b.name || 'Untitled', checked: onBoard && b.id === app.activeId, run: () => app.selectBoard(b.id) })),
+        'sep',
+        { label: 'New Board', run: app.addBoard },
+      ],
     },
     { title: 'Type', badge: filter.types.length, items: typeItems.length ? typeItems : [{ label: 'No types detected yet', disabled: true, run: () => {} }] },
-    { title: 'Categories', badge: filter.categories.length, items: categoryItems },
+    { title: 'Colour', badge: filter.colors.length, items: colourItems },
+    { title: 'Tags', badge: filter.categories.length, items: categoryItems },
     { title: 'Help', items: [{ label: 'Pen test…', run: () => setPenTest(true) }, 'sep', { label: 'About REMind', run: () => setAbout(true) }] },
   ]
 

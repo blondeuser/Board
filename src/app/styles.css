@@ -226,6 +226,13 @@ main { position: relative; min-width: 0; overflow: hidden; }
 .cell { position: relative; display: block; width: 100%; margin: 0 0 14px; padding: 0; border: 0; border-radius: 14px; overflow: hidden; background: var(--panel-2); break-inside: avoid; box-shadow: var(--shadow-sm); transition: transform 0.18s ease, box-shadow 0.18s ease; }
 .cell:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
 .cell img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cell .link-badge { left: 8px; top: 8px; width: 26px; height: 26px; z-index: 2; }
+.cell .link-badge svg { width: 14px; height: 14px; }
+.cell.note-card { aspect-ratio: 3 / 4; display: flex; flex-direction: column; justify-content: space-between; padding: 16px 18px; text-align: left; color: var(--note-text); font-size: 17px; line-height: 1.4; cursor: pointer; }
+.cell.note-card.as-text { aspect-ratio: auto; min-height: 110px; background: var(--panel-2); color: var(--text); }
+.note-card-text { white-space: pre-wrap; overflow: hidden; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 9; -webkit-box-orient: vertical; }
+.note-card-board { font-size: 12px; opacity: 0.55; text-transform: uppercase; letter-spacing: 0.04em; margin-top: 10px; }
+.cell:not(.selected) { box-shadow: var(--ring, var(--shadow-sm)); }
 .cell.selected { box-shadow: 0 0 0 3px var(--bg), 0 0 0 5px var(--accent); }
 .cell .strip { position: absolute; left: 0; right: 0; bottom: 0; height: 5px; display: flex; opacity: 0; transition: opacity 0.15s; }
 .cell:hover .strip, .cell.selected .strip { opacity: 1; }
@@ -259,7 +266,7 @@ main { position: relative; min-width: 0; overflow: hidden; }
 .stacks.has-open .stack-tile:not(.open):hover { opacity: 0.8; filter: none; }
 
 .colour-section { margin-top: auto; }
-.theme-toggle { align-self: flex-start; margin-top: -10px; }
+.theme-toggle { align-self: flex-start; margin-top: auto; }
 
 /* Status pill is a button (click to reopen a hidden LIT import). */
 button.status { border: 0; font: inherit; font-size: 15px; cursor: default; }
@@ -437,7 +444,7 @@ button.status { border: 0; font: inherit; font-size: 15px; cursor: default; }
 :root[data-theme^='concrete'] .stack .card { border-radius: 0; box-shadow: 0 0 0 1px var(--ink); }
 :root[data-theme^='concrete'] .stack-title { border-top-color: var(--ink); }
 
-/* All tab: a big serif date landmark (MM/YY) above each month's images. */
+/* All tab: a big serif date landmark (DD/MM/YY) above each day's images. */
 .date-head { display: flex; align-items: baseline; gap: 18px; margin: 18px 0 16px; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
 .date-head strong { font-weight: 400; font-size: 96px; line-height: 0.9; letter-spacing: -0.01em; }
 .date-head .muted { font-size: 18px; flex: 1; }

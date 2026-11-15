@@ -33,8 +33,8 @@ console.log('sections:', await heads())
 console.log('cells (one image is in 2 sections):', await page.locator('.cell').count())
 await page.locator('.group-toggle', { hasText: 'Posters' }).click()
 console.log('cells after collapsing Posters:', await page.locator('.cell').count())
-await page.locator('.group-head', { hasText: 'Uncategorized' }).getByText('Select all').click()
-console.log('select all in Uncategorized ->', await page.locator('.inspector strong').textContent())
+await page.locator('.group-head', { hasText: 'No tag' }).getByText('Select all').click()
+console.log('select all in No tag ->', await page.locator('.inspector strong').textContent())
 await page.locator('.group-toggle', { hasText: 'Posters' }).click(); await page.waitForTimeout(100); await page.locator('.group-toggle', { hasText: 'Posters' }).click(); await page.waitForTimeout(100); await page.screenshot({ path: process.env.SHOT ?? 'smoke-groups.png' })
 // Type tab: sections titled by type, cards stacked under each title
 const setType = async (i, label) => {

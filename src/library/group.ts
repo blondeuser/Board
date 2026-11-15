@@ -2,7 +2,7 @@ import type { Asset, Category } from '../shared/types'
 import { COLOR_FAMILIES } from '../categorize/color'
 import { ALL_TYPE_LABELS } from '../categorize/style/labels'
 
-/** 'date' = one section per month (MM/YY) of the import date; the Library uses it for the All tab. */
+/** 'date' = one section per day (DD/MM/YY) of the import date, newest first; the Library uses it for the All tab. */
 export type GroupBy = 'none' | 'date' | 'category' | 'type' | 'color' | 'source'
 
 export interface Group {
@@ -17,15 +17,16 @@ export interface Group {
 export function groupAssets(assets: Asset[], by: GroupBy, categories: Category[]): Group[] {
   if (by === 'none') return [{ key: 'all', name: 'All', items: assets }]
   if (by === 'date') {
-    const months = new Map<string, Group>()
+    const days = new Map<string, Group>()
     for (const a of [...assets].sort((x, y) => y.createdAt - x.createdAt)) {
       const d = new Date(a.createdAt)
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-      const g = months.get(key) ?? { key, name: `${key.slice(5)}/${key.slice(2, 4)}`, items: [] }
+      const p2 = (n: number) => String(n).padStart(2, '0')
+      const key = `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`
+      const g = days.get(key) ?? { key, name: `${p2(d.getDate())}/${p2(d.getMonth() + 1)}/${p2(d.getFullYear() % 100)}`, items: [] }
       g.items.push(a)
-      months.set(key, g)
+      days.set(key, g)
     }
-    return [...months.values()]
+    return [...days.values()]
   }
 
   const sourceCats = by === 'source' ? [...new Set(assets.flatMap((a) => a.source?.categories ?? []))].sort((x, y) => x.localeCompare(y)) : []
@@ -45,7 +46,7 @@ export function groupAssets(assets: Asset[], by: GroupBy, categories: Category[]
   const placed = new Set(groups.flatMap((g) => g.items.map((a) => a.id)))
   const rest = assets.filter((a) => !placed.has(a.id))
   if (rest.length) {
-    const name = by === 'category' ? 'Uncategorized' : by === 'type' ? 'No type' : by === 'source' ? 'Not imported' : 'No colour'
+    const name = by === 'category' ? 'No tag' : by === 'type' ? 'No type' : by === 'source' ? 'Not imported' : 'No colour'
     groups.push({ key: 'rest', name, items: rest })
   }
   return groups

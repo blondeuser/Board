@@ -296,7 +296,7 @@ export function useBoardApp() {
     const z = Math.max(0, ...ps.filter((p) => p.boardId === boardId).map((p) => p.z)) + 1
     const n = ps.filter((p) => p.boardId === boardId && p.kind === 'note').length
     const note: Placement = {
-      id: newId(), boardId, kind: 'note', assetId: '', text: '', tint: NOTE_GREYS[n % NOTE_GREYS.length],
+      id: newId(), boardId, kind: 'note', createdAt: Date.now(), assetId: '', text: '', tint: NOTE_GREYS[n % NOTE_GREYS.length],
       x: center.x - NOTE_W / 2, y: center.y - NOTE_H / 2, w: NOTE_W, h: NOTE_H, z,
     }
     setPlacements((p) => [...p, note])
@@ -310,7 +310,7 @@ export function useBoardApp() {
     const { placements: ps, activeId: boardId } = latest.current
     const z = Math.max(0, ...ps.filter((p) => p.boardId === boardId).map((p) => p.z)) + 1
     const fmt = [...ps].reverse().find((p) => p.kind === 'text')?.fmt ?? DEFAULT_TEXT_FORMAT
-    const t: Placement = { id: newId(), boardId, kind: 'text', assetId: '', text: '', fmt, x: center.x - 160, y: center.y - fmt.size, w: 320, h: Math.round(fmt.size * 1.5), z }
+    const t: Placement = { id: newId(), boardId, kind: 'text', createdAt: Date.now(), assetId: '', text: '', fmt, x: center.x - 160, y: center.y - fmt.size, w: 320, h: Math.round(fmt.size * 1.5), z }
     setPlacements((p) => [...p, t])
     void db.savePlacements([t])
     setSelection([t.id])

@@ -168,7 +168,7 @@ export function Inspector({ app, assetIds, notes = [], shapes = [], texts = [], 
             </select>
           </div>
 
-          <h3>Categories</h3>
+          <h3>Tags</h3>
           <div className="chips">
             {app.categories.map((c) => (
               <button
@@ -181,7 +181,7 @@ export function Inspector({ app, assetIds, notes = [], shapes = [], texts = [], 
                 {c.name}
               </button>
             ))}
-            {!app.categories.length && <span className="muted">Add categories from the Categories menu</span>}
+            {!app.categories.length && <span className="muted">Add tags from the Tags menu</span>}
           </div>
         </>
       )}

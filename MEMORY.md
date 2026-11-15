@@ -22,6 +22,7 @@ What the project does and the domain rules behind it. **Rules for working on the
 | An item can live on many boards; boards reference items, not copies | Built 2026-11-14. Removing from a board or deleting a board keeps the image in the library; only deleting in the Library removes it everywhere |
 | Auto tags never overwrite user-edited tags | Proposed |
 | Canvas engine: custom DOM canvas for now | Decided 2026-11-14 for the first draft; revisit after the 500-image check |
+| **Naming (2026-11-15): user-made categories are called "Tags" in the UI** (menu, inspector, library grouping, "No tag" section); code, DB and `.bo` keep the name `categories` / `categoryIds`. LIT award categories keep the word "categories". | Decided 2026-11-15 |
 | Tags: colour families (auto, editable) + user-made categories; filters fade non-matches rather than hide them | Built 2026-11-14 |
 | Data model: `Asset` (image + tags) is separate from `Placement` (position on a board) | Built 2026-11-14 |
 | The **library is the master copy**; a `.bo` file is an export/import of one board (layout + its images + their tags), for sharing and backup. Spec: `docs/BO_FORMAT.md` | Decided 2026-11-14 |

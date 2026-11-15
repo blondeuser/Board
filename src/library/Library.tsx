@@ -1,12 +1,19 @@
+import { tagRing } from './ring'
 import { useMemo, useRef, useState } from 'react'
 import type { BoardApp } from '../app/useBoardApp'
-import type { Asset } from '../shared/types'
+import type { Asset, Placement } from '../shared/types'
 import { groupAssets, type GroupBy } from './group'
-import { SearchIcon } from '../ui/icons'
+import { LinkIcon, SearchIcon } from '../ui/icons'
+import { openExternal } from '../shared/external'
+import { DEFAULT_TEXT_FORMAT, TEXT_FONTS } from '../shared/types'
 import { ContextMenu, type MenuItem } from '../ui/ContextMenu'
 
+/** An image, or a note/text placement shown as a card among them. */
+type LibItem = Asset & { note?: Placement }
+const NOTE_PREFIX = 'note:'
+
 const TABS: [GroupBy, string][] = [
-  ['category', 'Category'],
+  ['category', 'Tag'],
   ['type', 'Type'],
   ['color', 'Colour'],
   ['source', 'Award'],
@@ -23,7 +30,7 @@ const loadGroupBy = (): GroupBy => {
 }
 
 /** "All images" view: every image across all boards, newest first, stacked into sections. Sidebar filters hide non-matches. */
-export function Library({ app, onDropData, onDelete }: { app: BoardApp; onDropData: (dt: DataTransfer) => void; onDelete: (ids: string[]) => void }) {
+export function Library({ app, showTags, onDropData, onDelete }: { app: BoardApp; showTags: boolean; onDropData: (dt: DataTransfer) => void; onDelete: (ids: string[]) => void }) {
   const { assets, urls, categories, librarySelection: selected, setLibrarySelection: setSelected } = app
   const [groupBy, setGroupBy] = useState<GroupBy>(loadGroupBy)
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
@@ -37,8 +44,52 @@ export function Library({ app, onDropData, onDelete }: { app: BoardApp; onDropDa
     () => (searching ? [...shown].sort((a, b) => (app.semantic.get(b.id) ?? -1) - (app.semantic.get(a.id) ?? -1)) : shown),
     [shown, searching, app.semantic],
   )
-  const groups = useMemo(() => groupAssets(ranked, searching ? 'none' : groupBy === 'none' ? 'date' : groupBy, categories), [ranked, groupBy, searching, categories])
+  const filtering = app.filter.colors.length + app.filter.categories.length + app.filter.types.length > 0
+  // Notes and text boxes live on boards as placements; here they become cards in the same grid, dated like images
+  // (their own createdAt, or their board's for older ones). They have no tags: they land in "No tag" / "No type" / "No colour".
+  const listed = useMemo<LibItem[]>(() => {
+    if (searching || filtering) return ranked
+    const born = new Map(app.boards.map((b) => [b.id, b.createdAt]))
+    const notes = app.allPlacements
+      .filter((p) => p.kind === 'note' || p.kind === 'text')
+      .map((p): LibItem => ({ id: NOTE_PREFIX + p.id, width: p.kind === 'text' ? 5 : 3, height: p.kind === 'text' ? 3 : 4, palette: [], colors: [], categoryIds: [], createdAt: p.createdAt ?? born.get(p.boardId) ?? 0, note: p }))
+    return [...ranked, ...notes].sort((a, b) => b.createdAt - a.createdAt)
+  }, [ranked, searching, filtering, app.allPlacements, app.boards])
+  const groups = useMemo(() => groupAssets(listed, searching ? 'none' : groupBy === 'none' ? 'date' : groupBy, categories), [listed, groupBy, searching, categories])
   const total = Object.keys(assets).length
+
+  const boardName = (id: string) => app.boards.find((b) => b.id === id)?.name ?? ''
+  const openNote = (boardId: string, id: string) => {
+    app.selectBoard(boardId)
+    app.setSelection([id])
+  }
+  /** Link badge on images that came from a web page; opens the page. */
+  const badge = (a: Asset) =>
+    a.source?.url && /^https?:\/\//i.test(a.source.url) ? (
+      <span className="link-badge" title={`Open ${a.source.url}`} onClick={(e) => { e.stopPropagation(); void openExternal(a.source!.url) }}>
+        <LinkIcon />
+      </span>
+    ) : null
+  /** A note or text box as a card, sitting in the grid among the images. */
+  const noteCard = (a: LibItem) => {
+    const p = a.note!
+    const fmt = p.fmt ?? DEFAULT_TEXT_FORMAT
+    const text = p.kind === 'text'
+    return (
+      <button
+        key={a.id}
+        className={'cell note-card' + (text ? ' as-text' : '')}
+        title={`Open on ${boardName(p.boardId)}`}
+        onClick={(e) => { e.stopPropagation(); openNote(p.boardId, p.id) }}
+        style={text
+          ? { fontFamily: TEXT_FONTS[fmt.font]?.css, fontWeight: fmt.bold ? 700 : 400, fontStyle: fmt.italic ? 'italic' : 'normal', textAlign: fmt.align, color: fmt.color === 'auto' ? undefined : fmt.color }
+          : { background: p.tint }}
+      >
+        <span className="note-card-text">{p.text || <span className="muted">Empty note</span>}</span>
+        <span className="note-card-board">{boardName(p.boardId)}</span>
+      </button>
+    )
+  }
 
   const click = (e: React.MouseEvent, id: string) => {
     e.stopPropagation()
@@ -98,7 +149,7 @@ export function Library({ app, onDropData, onDelete }: { app: BoardApp; onDropDa
     'sep',
     { label: 'Delete…', keys: 'Del', disabled: !selected.length, run: () => onDelete(selected) },
   ]
-  const selectGroup = (items: Asset[]) => setSelected(items.map((a) => a.id))
+  const selectGroup = (items: Asset[]) => setSelected(items.filter((a) => !(a as LibItem).note).map((a) => a.id))
 
   return (
     <div
@@ -145,7 +196,7 @@ export function Library({ app, onDropData, onDelete }: { app: BoardApp; onDropDa
         ))}
       </div>}
 
-      {!shown.length ? (
+      {!listed.length ? (
         <div className="empty static">
           <p>{total ? 'No images match the filters' : 'Paste or drop images to add them to the library'}</p>
         </div>
@@ -179,9 +230,10 @@ export function Library({ app, onDropData, onDelete }: { app: BoardApp; onDropDa
                 <button className="link" onClick={() => setOpenStack('')}>Close</button>
               </div>
               <div className="grid">
-                {g.items.map((a) => (
-                  <button key={a.id} data-aid={a.id} className={'cell' + (selected.includes(a.id) ? ' selected' : '')} onClick={(e) => click(e, a.id)} aria-pressed={selected.includes(a.id)} style={{ aspectRatio: `${a.width} / ${a.height}` }}>
+                {g.items.map((a) => (a as LibItem).note ? noteCard(a as LibItem) : (
+                  <button key={a.id} data-aid={a.id} className={'cell' + (selected.includes(a.id) ? ' selected' : '')} onClick={(e) => click(e, a.id)} aria-pressed={selected.includes(a.id)} style={{ aspectRatio: `${a.width} / ${a.height}`, ...(showTags ? ({ '--ring': tagRing(a, categories, '1') } as React.CSSProperties) : {}) }}>
                     {urls[a.id] && <img src={urls[a.id]} alt="" draggable={false} loading="lazy" />}
+                    {badge(a)}
                   </button>
                 ))}
               </div>
@@ -194,7 +246,7 @@ export function Library({ app, onDropData, onDelete }: { app: BoardApp; onDropDa
             {groupBy === 'none' && !searching && (
               <div className="date-head" onClick={(e) => e.stopPropagation()}>
                 <strong>{g.name}</strong>
-                <span className="muted">{g.items.length} {g.items.length === 1 ? 'image' : 'images'}</span>
+                <span className="muted">{g.items.length} {g.items.length === 1 ? 'item' : 'items'}</span>
                 <button className="link" onClick={() => selectGroup(g.items)}>Select all</button>
               </div>
             )}
@@ -211,16 +263,17 @@ export function Library({ app, onDropData, onDelete }: { app: BoardApp; onDropDa
             )}
             {!collapsed[g.key] && (
               <div className="grid">
-                {g.items.map((a) => (
+                {g.items.map((a) => (a as LibItem).note ? noteCard(a as LibItem) : (
                   <button
                     key={a.id}
                     data-aid={a.id}
                     className={'cell' + (selected.includes(a.id) ? ' selected' : '')}
                     onClick={(e) => click(e, a.id)}
                     aria-pressed={selected.includes(a.id)}
-                    style={{ aspectRatio: `${a.width} / ${a.height}` }}
+                    style={{ aspectRatio: `${a.width} / ${a.height}`, ...(showTags ? ({ '--ring': tagRing(a, categories, '1') } as React.CSSProperties) : {}) }}
                   >
                     {urls[a.id] && <img src={urls[a.id]} alt="" draggable={false} loading="lazy" />}
+                    {badge(a)}
                     <span className="strip">
                       {a.palette.slice(0, 5).map((c) => <i key={c.hex} style={{ background: c.hex, flexGrow: c.share }} />)}
                     </span>

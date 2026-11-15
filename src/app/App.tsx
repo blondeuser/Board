@@ -7,13 +7,14 @@ import { bentoLayout } from '../canvas/bento'
 import { boundsOf, clampZoom, fitRect, screenToWorld, zoomAt } from '../canvas/viewport'
 import { blobsFromTransfer } from '../items/importImage'
 import { LinkError, isWebUrl, loadLink } from '../sources/link/client'
+import { tagRing } from '../library/ring'
 import { MenuBar } from '../ui/MenuBar'
 import { ContextMenu, type MenuItem } from '../ui/ContextMenu'
 import { Sidebar } from '../ui/Sidebar'
 import { Inspector } from '../ui/Inspector'
 import type { ShapeKind } from '../shared/types'
 import { Library } from '../library/Library'
-import { BentoIcon, DiamondIcon, EllipseIcon, FitIcon, LinkIcon, RectIcon, TriangleIcon, MinusIcon, NoteIcon, PenIcon, TextIcon, PlusIcon } from '../ui/icons'
+import { BentoIcon, DiamondIcon, EllipseIcon, FitIcon, LinkIcon, RectIcon, TriangleIcon, MinusIcon, NoteIcon, PenIcon, TagIcon, TextIcon, PlusIcon } from '../ui/icons'
 
 function confirmDelete(app: BoardApp, assetIds: string[]) {
   const boards = new Set(app.allPlacements.filter((p) => assetIds.includes(p.assetId)).map((p) => p.boardId)).size
@@ -44,6 +45,14 @@ export function App() {
   })
   const [tool, setTool] = useState<ShapeKind | null>(null)
   // Pen mode: the pen tip draws ink; the mouse keeps editing. Prefs are per viewer, so localStorage is enough.
+  // Tag borders: images with tags get a ring in their tag colours. Per-viewer preference, so localStorage is enough.
+  const [showTags, setShowTags] = useState(() => {
+    try { return localStorage.getItem('board.tagBorders') !== 'off' } catch { return true }
+  })
+  const toggleTags = () => {
+    setShowTags(!showTags)
+    try { localStorage.setItem('board.tagBorders', showTags ? 'off' : 'on') } catch { /* private window */ }
+  }
   const [penMode, setPenMode] = useState(false)
   const [pen, setPen] = useState(() => {
     try { return { color: 'auto', size: 4, ...JSON.parse(localStorage.getItem('board.pen') ?? '{}') } } catch { return { color: 'auto', size: 4 } }
@@ -207,6 +216,12 @@ export function App() {
     if (next === 'bento') app.setView({ ...view, y: 0 }) // grid zoom/centring is handled by the canvas; start at the top
     else fit(app.boardPlacements)
   }
+  /** View menu: library, or the board in free layout / cards mode. */
+  const showView = (v: 'free' | 'cards' | 'library') => {
+    if (v === 'library') return app.setScreen('library')
+    app.setScreen('board')
+    if ((v === 'cards') !== bento) toggleBento()
+  }
   const selectedPlacements = app.boardPlacements.filter((p) => app.selection.includes(p.id))
   const linked = selectedPlacements.length === 2 && app.connections.some((c) => selectedPlacements.every((p) => p.id === c.from || p.id === c.to))
   const openMenu = (x: number, y: number, id: string | null) => {
@@ -256,7 +271,7 @@ export function App() {
 
   return (
     <div className="app">
-      <MenuBar app={app} sidebarOpen={sidebarOpen} onToggleSidebar={toggleSidebar} onLitImport={lit.open} />
+      <MenuBar app={app} sidebarOpen={sidebarOpen} onToggleSidebar={toggleSidebar} onLitImport={lit.open} view={app.screen === 'library' ? 'library' : bento ? 'cards' : 'free'} onShowView={showView} showTags={showTags} onToggleTags={toggleTags} />
       <LitImportDialog lit={lit} onShowLibrary={() => app.setScreen('library')} />
       <div className={'shell' + (sidebarOpen ? '' : ' collapsed')}>
       {!sidebarOpen && <div className="edge" onPointerEnter={showPeek} onPointerLeave={hidePeek} />}
@@ -266,7 +281,7 @@ export function App() {
       <main>
         {app.screen === 'library' ? (
           <>
-            <Library app={app} onDropData={(dt) => void ingest(dt)} onDelete={(ids) => confirmDelete(app, ids)} />
+            <Library app={app} showTags={showTags} onDropData={(dt) => void ingest(dt)} onDelete={(ids) => confirmDelete(app, ids)} />
             <Inspector
               app={app}
               library
@@ -297,6 +312,7 @@ export function App() {
           urls={app.urls}
           links={links}
           selection={app.selection}
+          ring={(p) => (showTags && p.assetId ? tagRing(app.assets[p.assetId], app.categories, 'var(--inv)') : '')}
           dimmed={(p) => filtering && (p.kind === 'note' || p.kind === 'shape' || p.kind === 'ink' || p.kind === 'text' || !app.matches(p.assetId))}
           onView={app.setView}
           onSelect={app.setSelection}
@@ -306,6 +322,7 @@ export function App() {
           onDropData={(dt, x, y) => void ingest(dt, x, y)}
         />
         <div className="tools" onPointerDown={(e) => e.stopPropagation()}>
+          <button className={'icon' + (showTags ? ' on' : '')} title={showTags ? 'Hide tag borders' : 'Show tag borders'} aria-pressed={showTags} onClick={toggleTags}><TagIcon /></button>
           <button className={'icon' + (bento ? ' on' : '')} title={bento ? 'Back to free layout' : 'Cards mode (bento grid)'} aria-pressed={bento} onClick={toggleBento}><BentoIcon /></button>
         </div>
         {!bento && <div className="drawbar" onPointerDown={(e) => e.stopPropagation()}>

@@ -40,6 +40,8 @@ interface Props {
   /** A finished stroke: absolute world points [x, y, pressure, ...], line width in world units. */
   onInk: (stroke: { points: number[]; color: string; size: number }) => void
   onEraseInk: (ids: string[]) => void
+  /** CSS box-shadow for the tag border of a card ('' = none). */
+  ring: (p: Placement) => string
   dimmed: (p: Placement) => boolean
   onStartEdit: (id: string) => void
   onEditNote: (id: string, text: string) => void
@@ -372,6 +374,7 @@ export function Canvas(props: Props) {
             href={props.links[p.assetId]}
             selected={selection.includes(p.id)}
             dimmed={props.dimmed(p)}
+            ring={props.ring(p)}
             locked={props.locked}
             editing={props.editingId === p.id}
             onEditNote={props.onEditNote}
@@ -402,12 +405,13 @@ interface ItemProps {
   href?: string
   selected: boolean
   dimmed: boolean
+  ring: string
   locked: boolean
   editing: boolean
   onEditNote: (id: string, text: string) => void
 }
 
-const Item = memo(function Item({ p, url, href, selected, dimmed, locked, editing, onEditNote }: ItemProps) {
+const Item = memo(function Item({ p, url, href, selected, dimmed, ring, locked, editing, onEditNote }: ItemProps) {
   const note = p.kind === 'note'
   const shape = p.kind === 'shape'
   const ink = p.kind === 'ink' && p.ink
@@ -417,7 +421,7 @@ const Item = memo(function Item({ p, url, href, selected, dimmed, locked, editin
     <div
       className={'item' + (note ? ' note' : '') + (shape ? ' shape' : '') + (ink ? ' ink' : '') + (text ? ' text' : '') + (selected ? ' selected' : '') + (dimmed ? ' dimmed' : '') + (locked ? ' locked' : '')}
       data-pid={p.id}
-      style={{ left: p.x, top: p.y, width: p.w, height: p.h, zIndex: p.z, ...(note ? { background: p.tint } : {}), ...(shape ? { '--tint': p.tint } : {}), ...(text ? { fontFamily: TEXT_FONTS[fmt.font]?.css, fontSize: fmt.size, fontWeight: fmt.bold ? 700 : 400, fontStyle: fmt.italic ? 'italic' : 'normal', textAlign: fmt.align, color: fmt.color === 'auto' ? 'var(--text)' : fmt.color } : {}) } as CSSProperties}
+      style={{ left: p.x, top: p.y, width: p.w, height: p.h, zIndex: p.z, ...(ring ? { boxShadow: ring } : {}), ...(note ? { background: p.tint } : {}), ...(shape ? { '--tint': p.tint } : {}), ...(text ? { fontFamily: TEXT_FONTS[fmt.font]?.css, fontSize: fmt.size, fontWeight: fmt.bold ? 700 : 400, fontStyle: fmt.italic ? 'italic' : 'normal', textAlign: fmt.align, color: fmt.color === 'auto' ? 'var(--text)' : fmt.color } : {}) } as CSSProperties}
     >
       {ink ? (
         <svg width={p.w} height={p.h} aria-hidden>
