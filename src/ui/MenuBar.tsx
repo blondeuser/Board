@@ -1,4 +1,5 @@
 import { isDesktop } from '../shared/desktop'
+import { openExternal } from '../shared/external'
 import { useEffect, useRef, useState } from 'react'
 import type { BoardApp } from '../app/useBoardApp'
 import { ALL_TYPE_LABELS } from '../categorize/style/labels'
@@ -160,6 +161,12 @@ export function MenuBar({ app, sidebarOpen, onToggleSidebar, onLitImport }: { ap
             </header>
             <p>Version {APP_VERSION}</p>
             <p className="muted small">Built {BUILD_DATE}. Your images stay on this computer.</p>
+            <p className="small">Created by REMSTUDIO © 2026</p>
+            <p className="small about-links">
+              <a href="https://rem-design.co" onClick={(e) => { e.preventDefault(); void openExternal('https://rem-design.co') }}>rem-design.co</a>
+              {' · '}
+              <a href="https://www.instagram.com/rem_thecreator" onClick={(e) => { e.preventDefault(); void openExternal('https://www.instagram.com/rem_thecreator') }}>Instagram @rem_thecreator</a>
+            </p>
           </div>
         </div>
       )}

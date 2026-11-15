@@ -171,6 +171,9 @@ _Last updated: 2026-11-15 (v0.4.0: pen ink, text, .bo in Rust, CSP)_
 
 ## Log
 
+### 2026-11-15 (About credit)
+- Help > About REMind now shows "Created by REMSTUDIO © 2026" plus links to rem-design.co and Instagram @rem_thecreator (open in the system browser). Typecheck clean; not in an installer yet (0.4.0 was built before this).
+
 ### 2026-11-15 (v0.4.0 release build)
 - Version **0.4.0** in package.json, tauri.conf.json, Cargo.toml (and the .bo writer's appVersion). Built `REMind_0.4.0_x64-setup.exe` (170.65 MiB, NSIS) with pen ink, text, Rust .bo, tighter CSP, .bo icon hook. Checked before building: typecheck, 78 TS tests, 33 Rust tests. **Installer not installed/tried yet** (Explorer icon, double-click open, upgrade over 0.3.0).
 
