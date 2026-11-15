@@ -189,7 +189,7 @@ _Last updated: 2026-11-15 (v0.8.1: optimisation audit, card-size slider)_
 ## Log
 
 ### 2026-11-15 (v0.8.1: optimisation audit, Library card-size slider)
-- **Library card size:** a minimal slider (thin line, − / +, fades in when you hover the search area) sets `--card-w` for all card grids, 100-480 px, remembered in localStorage (`Library.tsx`, `styles.css`). Stack tiles keep their size. Version 0.8.1.
+- **Library card size:** a minimal slider (thin line, − / +, fades in when you hover the search area) sets `--card-w` for all card grids, 100-480 px, remembered in localStorage (`Library.tsx`, `styles.css`). Stack tiles keep their size. Version 0.8.1, commit `3f81b35`.
 - Library inspector no longer sits under the link title on a card (`.cell` isolates its stacking context, `.inspector` z-index 5; `scripts/smoke-lib-inspector.mjs`).
 - Desktop bundle: `npm run build:desktop` (`vite build --mode desktop`, used by `tauri build`) folds `__DESKTOP_BUILD__` to true, so the browser-only model worker, the 27 MB ONNX wasm and the IndexedDB backend are not in the installer. `npm run dev` / `npm run build` keep the browser dev mode. Classifier split: `categorize/style/classifier.ts` (thin) + `browserClassifier.ts` (worker).
 - Desktop thumbnails load straight from the file (`db.thumbUrl`, asset protocol URL) instead of fetch -> Blob -> blob URL; loaded URLs are applied once per animation frame; analysis no longer fetches the image into JS on desktop. Not yet checked in the running app.
