@@ -2,7 +2,7 @@
 
 Living status. **Update at the end of every work session.** Rules live in `CLAUDE.md`, business logic in `MEMORY.md`.
 
-_Last updated: 2026-11-15 (v0.7.0: mouse as pen)_
+_Last updated: 2026-11-15 (v0.7.1: bug check + optimisations)_
 
 ## Status
 
@@ -181,6 +181,9 @@ _Last updated: 2026-11-15 (v0.7.0: mouse as pen)_
 
 ### 2026-11-15 (v0.7.0: mouse draws as a pen, release build)
 - Pen toolbar has a **Mouse draws** button (`mouseInk` in `App.tsx` / `Canvas.tsx`, `MouseIcon`): with pen mode on, the mouse and touch draw ink instead of editing items (left button only, steady pressure 0.8, the eraser button still wins). Off by default, not remembered between sessions. Typecheck clean; not checked with a real Wacom or touch screen. Version 0.7.0 in package.json, tauri.conf.json, Cargo.toml, write.ts.
+
+### 2026-11-15 (v0.7.1: bug check, optimisations, release build)
+- Code check of 0.7.0 (typecheck, 82 TS tests, 38 cargo tests, clippy: style warnings only). Fixed: `Files::find` tried a full folder listing per image lookup (O(n²) over a library; now tries the usual extensions first); Pinterest panel layout could still reserve the panel's width after closing (`layout(app, show_panel)`); the panel resize drag sent an IPC call per mouse move (now one per animation frame). Known, left: a DB write already waiting on the lock when a library move starts can land in the old library; `import_bo` reopens the zip once per image (slow on huge boards); erase is not undoable; the Mouse-draws toggle does not reset when the pen turns off. Version 0.7.1 in package.json, tauri.conf.json, Cargo.toml, write.ts.
 
 ### 2026-11-15 (v0.7.0 release build)
 - `npm run tauri build` (1.5 min compile): `REMind_0.7.0_x64-setup.exe` (170.7 MiB, NSIS; ship this one) and `REMind_0.7.0_x64_en-US.msi` (185 MiB). 82 TS tests pass. Not installed or tried yet: mouse-draws toggle, install over 0.6.0.

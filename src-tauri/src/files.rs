@@ -21,6 +21,11 @@ impl Files {
     /// A file's path whatever its extension.
     fn find(dir: &Path, id: &str) -> Option<PathBuf> {
         let id = safe(id);
+        // Fast path: try the usual extensions (a few stat calls) before listing the folder, which is slow with thousands of images.
+        for ext in ["jpg", "png", "webp", "gif", "jpeg", "bmp"] {
+            let p = dir.join(format!("{id}.{ext}"));
+            if p.is_file() { return Some(p) }
+        }
         std::fs::read_dir(dir).ok()?.flatten().map(|f| f.path()).find(|p| p.file_stem().is_some_and(|s| *s == *id))
     }
     pub fn find_original(&self, id: &str) -> Option<PathBuf> {
