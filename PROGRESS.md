@@ -179,6 +179,9 @@ _Last updated: 2026-11-15 (v0.7.1 + Mac port)_
 
 ## Log
 
+### 2026-11-15 (Mac: v0.7.1 build)
+- Pulled 0.7.1 (merge `196184d`; only the "Last updated" line conflicted) and rebuilt on the MacBook: `REMind.app` (242 MiB) and `REMind_0.7.1_aarch64.dmg` (175.3 MiB), ad-hoc signed. Typecheck, 82 TS tests, 38 cargo tests pass. Not launched or hand-tested; the 0.7.1 Pinterest panel fixes are untested on WKWebView. Not committed.
+
 ### 2026-11-15 (Mac: trackpad pinch fix)
 - `Canvas.tsx`: added `gesturestart` / `gesturechange` listeners (WebKit's pinch events, scale relative to gesturestart, zoom around the cursor) next to the wheel handler; Chromium's ctrl+wheel path is unchanged. Typecheck + 82 tests pass (`4098533`, with the Mac build config). **Not verified in WKWebView:** the dev tooling can't drive it (`smoke-desktop.mjs` uses WebView2's remote-debugging port; no CDP on macOS), so this needs a hand test: `npm run tauri dev`, pinch on the canvas. Not committed.
 
