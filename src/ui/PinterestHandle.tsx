@@ -9,6 +9,7 @@ export function PinterestHandle() {
   const [open, setOpen] = useState(false)
   const width = useRef(480) // panel width in logical px; matches PANEL_W in lib.rs
   const total = useRef<number | null>(null) // main + panel width at drag start
+  const frame = useRef(0) // one resize call per animation frame: pointermove can fire far faster than the layout can follow
 
   useEffect(() => {
     if (!isDesktop()) return
@@ -29,7 +30,8 @@ export function PinterestHandle() {
         onPointerMove={(e) => {
           if (total.current === null) return
           width.current = Math.round(total.current - e.clientX)
-          void call('set_pinterest_width', { w: width.current })
+          cancelAnimationFrame(frame.current)
+          frame.current = requestAnimationFrame(() => void call('set_pinterest_width', { w: width.current }))
         }}
         onPointerUp={() => { total.current = null }}
       />

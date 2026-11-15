@@ -290,10 +290,10 @@ fn take_launch_file(s: State<Store>) -> Option<String> { s.launch_file.lock().ok
 static PANEL_W: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(480);
 
 /// Lays the main webview and the Pinterest panel (a child webview with no capabilities, so its scripts can't call REMind) side by side.
-fn layout(app: &tauri::AppHandle) {
+fn layout(app: &tauri::AppHandle, show_panel: bool) {
     let (Some(win), Some(main)) = (app.get_window("main"), app.get_webview("main")) else { return };
     let Ok(size) = win.inner_size() else { return };
-    let panel = app.get_webview("pinterest");
+    let panel = app.get_webview("pinterest").filter(|_| show_panel); // a panel that is closing may still be listed
     let pw = if panel.is_some() { (PANEL_W.load(std::sync::atomic::Ordering::Relaxed) as f64 * win.scale_factor().unwrap_or(1.0)) as u32 } else { 0 }.min(size.width / 2);
     let _ = main.set_position(tauri::PhysicalPosition::new(0, 0));
     let _ = main.set_size(tauri::PhysicalSize::new(size.width - pw, size.height));
@@ -308,14 +308,14 @@ fn layout(app: &tauri::AppHandle) {
 async fn toggle_pinterest(app: tauri::AppHandle) -> Res<bool> { // async: building a webview from a sync command runs on the main thread and deadlocks on Windows
     if let Some(p) = app.get_webview("pinterest") {
         p.close().map_err(|e| e.to_string())?;
-        layout(&app);
+        layout(&app, false);
         let _ = app.emit("pinterest-open", false);
         return Ok(false);
     }
     let win = app.get_window("main").ok_or("no main window")?;
     let url: tauri::Url = "https://www.pinterest.com".parse().map_err(|e| format!("{e}"))?;
     win.add_child(tauri::webview::WebviewBuilder::new("pinterest", WebviewUrl::External(url)), tauri::LogicalPosition::new(0.0, 0.0), tauri::LogicalSize::new(PANEL_W.load(std::sync::atomic::Ordering::Relaxed) as f64, 600.0)).map_err(|e| e.to_string())?;
-    layout(&app);
+    layout(&app, true);
     let _ = app.emit("pinterest-open", true);
     Ok(true)
 }
@@ -324,7 +324,7 @@ async fn toggle_pinterest(app: tauri::AppHandle) -> Res<bool> { // async: buildi
 #[tauri::command]
 fn set_pinterest_width(app: tauri::AppHandle, w: u32) {
     PANEL_W.store(w.clamp(240, 1600), std::sync::atomic::Ordering::Relaxed);
-    layout(&app);
+    layout(&app, true);
 }
 
 /// Sizes and paths for Settings → Storage, plus the missing-library state for the start-up dialog.
@@ -506,7 +506,7 @@ pub fn run() {
             app.manage(Store { db: Mutex::new(db), files: Files { originals: paths.originals.clone(), thumbs: paths.thumbs.clone(), legacy_thumbs: Some(legacy) }, paths, config_dir: root, default_cache, settings: Mutex::new(settings), moving: AtomicBool::new(false), cancel_move: AtomicBool::new(false), model_dir, analyzer: Mutex::new(None), index: Mutex::new(None), launch_file: Mutex::new(std::env::args().skip(1).find(|a| a.to_lowercase().ends_with(".bo"))) });
             Ok(())
         })
-        .on_window_event(|w, e| { if let tauri::WindowEvent::Resized(_) = e { if w.label() == "main" { layout(w.app_handle()); } } })
+        .on_window_event(|w, e| { if let tauri::WindowEvent::Resized(_) = e { if w.label() == "main" { layout(w.app_handle(), true); } } })
         .invoke_handler(tauri::generate_handler![
             load_all, save_boards, save_assets, save_placements, save_connections, save_categories, delete_board,
             delete_assets, delete_placements, delete_connections, delete_category, clear_all, add_asset, save_thumb, import_image,
