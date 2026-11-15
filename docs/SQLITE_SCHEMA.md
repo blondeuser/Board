@@ -12,6 +12,10 @@ Replaces IndexedDB (`src/storage/db.ts`) when Board moves into Tauri. Mirrors `s
 <appData>/board.sqlite
 ```
 
+> Planned 2026-11-15 (`docs/STORAGE.md`): the library folder (`board.sqlite` + `originals/` + `remind-library.json`) can
+> move to another local drive, and thumbnails move to a separate cache folder (`<cacheDir>/thumbs/<hash>.webp`). The
+> schema itself does not change: rows never store absolute paths, only ids/hashes, so a moved library keeps working.
+
 ## Migration 001
 ```sql
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT);            -- schema_version, embedding_model

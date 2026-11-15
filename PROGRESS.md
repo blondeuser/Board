@@ -2,7 +2,7 @@
 
 Living status. **Update at the end of every work session.** Rules live in `CLAUDE.md`, business logic in `MEMORY.md`.
 
-_Last updated: 2026-11-15 (plan: Pinterest window + drag to board)_
+_Last updated: 2026-11-15 (Pinterest docked panel, .bo progress bar, partial eraser)_
 
 ## Status
 
@@ -10,12 +10,14 @@ _Last updated: 2026-11-15 (plan: Pinterest window + drag to board)_
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **Current phase** | Browser build done (canvas, Library, meaning-search, `.bo`, LIT import, two Concrete themes). **Windows demo installer builds** (Tauri 2, 2026-11-15) but is not yet tested on a PC; next: test it, then verify LIT on the Mac, lighting-technique eval, SQLite step |
 | **App**           | Runs with `npm run dev` (port 5173). Boards, infinite canvas, notes, bento mode, Library (Category / Type / Colour / Award / All tabs, stacks, semantic search), colour + type + custom-category tags, `.bo` save/open, menu bar, collapsible sidebar, File > Import from LIT Awards (needs the dev server), Mocha/Latte theme |
-| **Tests**         | 59 Vitest tests (colour, viewport, bento, type picking, grouping, search, `.bo`, LIT + link parsers, `isPublicHost`) pass; typecheck clean. Playwright smoke scripts in `scripts/` |
+| **Tests**         | 82 Vitest tests (colour, viewport, bento, type picking, grouping, search, `.bo`, LIT + link parsers, `isPublicHost`) pass; typecheck clean. Playwright smoke scripts in `scripts/` |
 | **Hosting**       | GitHub `blondeuser/Board` (public). Latest code commit `2c5a6ff` |
 
 ## Resume here (next session)
 
-**Planned 2026-11-15: Pinterest inside REMind** (`docs/PINTEREST.md`). Open Pinterest in its own window, signed in, and drag pins onto a board (full-size download, source = pin link). Not started. Next: step 0 spike (log the drop payload from the Pinterest window on Windows, then the Mac), then steps 1-3. Ask before step 5 (docked panel, Tauri `unstable`) and step 6 (bulk grab, remote capability).
+**Planned 2026-11-15: library location + cache + Settings** (`docs/STORAGE.md`, roadmap §3). Edit → Settings → Storage: move the whole library (originals + database) to another local drive (copy, verify, switch, old folder kept), separate cache folder for thumbnails with *Clear cache*, missing-library dialog. Not started. Before coding: approve `windows-sys` + `libc` (drive type, free space) or decide to skip those checks. Then Rust (`settings.rs`, `storage.rs`, `files.rs` two roots), tests, UI, version `0.6.0`.
+
+**Planned 2026-11-15: Pinterest inside REMind** (`docs/PINTEREST.md`). **Built so far: the docked panel (step 5 done early, at my request)**: a toolbar Pinterest button and File > Pinterest Panel toggle a child webview inside the main window (resizable by dragging its left edge, × to close). **Next: step 0 spike** (drag a pin onto the board in `tauri dev`; the `[drop]` console log shows the payload; record it in `docs/PINTEREST.md` §9, Mac too), then steps 2-3 (URL drop → download → import). Ask before step 6 (bulk grab, remote capability).
 
 **Rust backend progress (2026-11-15):** step 1 (SQLite + files + migration) and step 2 (import) are built and in 0.2.0; step 0 is only partly done (storage is behind `src/backend/`, `useBoardApp.ts` not split). Step 3 (bundled SigLIP, CPU) is in 0.3.0 too. **Next: install 0.3.0 over a real 0.1.x library and check the migration**, run `eval-search` against the Rust path, record timings (import, analysis/image, search), try DirectML, then step 4 (`.bo` in Rust).
 
@@ -79,6 +81,7 @@ _Last updated: 2026-11-15 (plan: Pinterest window + drag to board)_
 - [x] `.bo` import: sidebar upload button; dedupes by hash into the library, matches categories by name, always creates a new board. Embeddings are re-computed by the normal backfill
 - [ ] `.bo` file association + icon on Windows and macOS (Tauri bundle config)
 - [ ] Full-library backup/restore (later; same container idea)
+- [ ] **Storage location (planned 2026-11-15, `docs/STORAGE.md`):** [ ] `settings.json` + library marker, [ ] thumbnails to a separate cache folder (one-time move), [ ] Edit menu + Settings → Storage tab with sizes, [ ] move library (local drives only; backup API + copy + re-hash verify + restart; old folder kept, *Delete old library*), [ ] move cache / reset, [ ] Clear cache + background thumbnail rebuild (+ WebView cache on next start), [ ] missing-library dialog (Retry / Locate… / default), [ ] lock file against two PCs; later: [ ] open/switch libraries, [ ] shrink originals (Max 4K/2K)
 
 ### 4. Auto-categorize
 - [x] Colour palette extraction + colour families
@@ -110,7 +113,7 @@ _Last updated: 2026-11-15 (plan: Pinterest window + drag to board)_
 - [ ] Unit test for `groupAssets(…, 'source')` and a UI smoke script (`scripts/smoke-lit.mjs`, with the proxy stubbed)
 - [ ] Honourable mentions and student winners (`/winners/hmention.php`, `/winners/student.php`; same card markup, not parsed yet)
 - [ ] Keep the entry description (it often names techniques: grazing, wall washer, uplight) for search and as weak lighting labels
-- [ ] **Pinterest** (planned 2026-11-15, `docs/PINTEREST.md`): [ ] step 0 drag spike (Windows + Mac), [ ] step 1 Pinterest window (File > Open Pinterest), [ ] step 2 URL drop → download through `fetchPublic` → `import_image` (all sites; fixes the CORS backlog item), [ ] step 3 Pinterest source data, [ ] step 4 fast repeated drops; later, ask first: [ ] step 5 docked panel, [ ] step 6 "Grab this board"
+- [ ] **Pinterest** (planned 2026-11-15, `docs/PINTEREST.md`): [ ] step 0 drag spike (Windows + Mac), [x] step 1 Pinterest view (built as the docked panel, toolbar button + File > Pinterest Panel; width not remembered, sign-in persistence unchecked), [ ] step 2 URL drop → download through `fetchPublic` → `import_image` (all sites; fixes the CORS backlog item), [ ] step 3 Pinterest source data, [ ] step 4 fast repeated drops; [x] step 5 docked panel (done early); later, ask first: [ ] step 6 "Grab this board"
 - [ ] Other reference sites behind the same `sources/<site>/` shape (parse + client + source), e.g. IALD, Darc awards, archdaily lighting tag
 
 ### 7. Pen drawing (Wacom), planned 2026-11-15 — `docs/PEN_INPUT.md`
@@ -149,13 +152,14 @@ _Last updated: 2026-11-15 (plan: Pinterest window + drag to board)_
 - Pen pressure (from research, unverified on my hardware): Chromium/WebView2 reads Wacom pressure only with "Use Windows Ink" on (no WinTab support); Safari/WebKit on macOS reports a Wacom pen as `mouse`, so the Mac desktop app may get no pen detection and maybe no pressure. Phase 0 spike checks both.
 - Desktop app storage: until the SQLite step, the Tauri app keeps using IndexedDB inside WebView2 (its own app-data folder). It starts with an **empty library**: boards made in the browser build (`localhost:5173`) don't carry over; move them with `.bo` export/import.
 - Mixed installers: an MSI install and an NSIS install of the same app can sit side by side as two apps. Ship NSIS only; if a PC has the 0.1.0 MSI, uninstall it first (keep app data).
-- The NSIS uninstaller has a "delete application data" checkbox: ticking it wipes the library.
+- The NSIS uninstaller has a "delete application data" checkbox: ticking it wipes the library (once the library can be moved, one on another drive survives, but `settings.json` is gone: the reinstalled app needs *Locate…*, `docs/STORAGE.md`).
 - Demo installer is unsigned: Windows SmartScreen warns on first run ("More info → Run anyway").
 
 ## Decisions
 
 | Date | Decision | Why |
 |---|---|---|
+| 2026-11-15 | The whole library (originals + `board.sqlite`) can be moved to another **local** drive from Settings → Storage; thumbnails and WebView cache live in a separate, clearable cache folder; network drives refused for the library. Plan `docs/STORAGE.md` | Import copies every image (2,000 photos ≈ 8 GB) into Roaming on C:; "clear" can only safely mean rebuildable data, so the space saving comes from moving, not deleting. SQLite over SMB risks corruption |
 | 2026-11-15 | Pinterest comes in through a Pinterest window inside REMind (signed in as me) with drag and drop onto the board; no official API, no paid scraper. Bulk "Grab this board" later, separate approval. Internal use only. Plan `docs/PINTEREST.md` | API search is closed (own pins only; partner search is beta, top 10); own-board import via API needs Business account + developer app + approval, too cumbersome; scrapers break and are against Pinterest's terms |
 | 2026-11-15 | Backend moves to Rust (`src-tauri/`): SQLite + files, import, SigLIP via `ort`, search, `.bo`. UI stays React in the webview. Browser build not shipped but kept as a local dev mode (`npm run dev`, frozen TS backend, amended same day); model bundled in the installer; crates approved: rusqlite, image, fast_image_resize, sha2, rayon, zip, serde, ort, tokenizers. Plan `docs/RUST_BACKEND.md` | Speed on big libraries (LIT ~3,700 photos), native GPU inference, files on disk, offline first run. Replaces "browser build first" (2026-11-14) |
 | 2026-11-15 | Pen drawing uses Pointer Events only (no Wacom SDK); strokes are `Placement` kind `ink` (raw points + pressure), live stroke on a canvas overlay, committed as SVG; undo/redo first. Proposed, open questions in `docs/PEN_INPUT.md` §9 | Reuses selection/z-order/copy/`.bo` for free; vector stays crisp at any zoom; Pointer Events work in WebView2 and the browser build |
@@ -174,6 +178,15 @@ _Last updated: 2026-11-15 (plan: Pinterest window + drag to board)_
 | 2026-11-14 | Imported images carry `Asset.source` (link, title, categories, credit, details) instead of auto-creating custom categories | 68 award categories per year would flood the sidebar; source data stays searchable and groupable (Award tab) and keeps photographer credits |
 
 ## Log
+
+### 2026-11-15 (plan: library location, cache, Settings)
+- Asked where the app stores data: library + DB in `%APPDATA%\com.remstudio.remind\` (`board.sqlite`, `library\originals`, `library\thumbs`), WebView2 data in `%LOCALAPPDATA%\com.remstudio.remind\`. Planned Edit → Settings → Storage: movable library (local drives only, copy + verify + switch), separate cache folder for thumbnails with Clear cache, missing-library dialog; open/switch libraries and shrink-originals later. Plan in `docs/STORAGE.md`. Docs only, no code.
+
+### 2026-11-15 (Pinterest docked panel, .bo progress bar, partial eraser)
+- **Pinterest panel:** replaced the separate window with a child webview docked on the right of the main window (`toggle_pinterest` in `lib.rs`, Tauri feature `unstable` enabled; approved by asking for the panel). It must be an `async` command: a sync one built the webview on the main thread and froze the app on Windows. `set_pinterest_width` resizes it (240-1600 logical px, max half the window), the main window's Resized event re-lays it out, and `pinterest-open` events drive `src/ui/PinterestHandle.tsx` (drag handle on the right edge, × close button) and the toolbar Pinterest button (`PinterestButton`, tools group in `App.tsx`, desktop only). The view still has no capabilities. Width resets to 480 on restart.
+- **.bo progress bar:** `export_bo` / `import_bo` emit `bo-progress` {done,total} per image (export: images written; import: images decoded, before anything is written); `exportBo`/`importBoFile` in `src/backend/api.ts` raise a `bo-busy` window event; `src/ui/BoStatusBar.tsx` shows a floating pill bottom right (`.bo-progress` in `styles.css`, sliding bar while there is no count). Until the first image is processed it has no count (library scan).
+- **Pen eraser:** toolbar eraser button in pen mode (any pointer erases) and the stylus eraser end now **cut** strokes instead of deleting them whole: `erasePoints` (`src/canvas/ink/stroke.ts`, resamples long segments, returns the surviving pieces) and `eraseInk(x, y, r)` in `useBoardApp.ts` (radius = pen size, min 6 px on screen; each piece becomes its own ink placement, keeps colour/size/z). New test in `tests/stroke.test.ts`; 82 TS tests pass, typecheck clean. Not checked: with a real Wacom, a very fast sweep can skip a thin stroke (no path between samples), no eraser cursor ring, erase is not undoable (no undo yet).
+- Spike logger: dev builds log every drop's payload to the console as `[drop]` (`src/app/main.tsx`) for the step 0 spike. Earlier note (superseded by the panel): rust `open_pinterest` window and File > Open Pinterest (desktop only). Dev builds log every drop's payload to the console as `[drop]` (`src/app/main.tsx`) for the step 0 spike. Compiles (cargo check, typecheck). Not yet tried: whether a pin drag carries the image URL. Not done: remembering window size/position, shortcut, sign-in persistence check.
 
 ### 2026-11-15 (plan: Pinterest)
 - Researched getting Pinterest images into REMind. Official API can't search all of Pinterest (partner search is beta, top 10 only); own-board import via OAuth judged too cumbersome. Chose a Pinterest window inside the app + drag and drop, bulk grab later. Plan in `docs/PINTEREST.md` (steps 0-6, fallbacks, risks). Docs only, no code.

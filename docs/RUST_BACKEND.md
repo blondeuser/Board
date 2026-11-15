@@ -24,7 +24,7 @@ IndexedDB, and an offline first run.
 |---|---|---|
 | Storage | IndexedDB, `src/storage/db.ts` | SQLite (`rusqlite`, WAL), schema in `docs/SQLITE_SCHEMA.md`; originals + thumbnails as files |
 | Import | decode, thumbnail, palette, hash on the UI thread (`items/importImage.ts`) | file path or bytes in → `sha2` hash → dedupe → decode (`image`) → 1280px WebP thumb (`fast_image_resize`) → OKLab k-means palette → files + rows. Parallel over `rayon`. Image bytes never come back to JS |
-| Display | `URL.createObjectURL` of IndexedDB blobs | `convertFileSrc(thumbPath)` through Tauri's asset protocol (scope = the library folder only) |
+| Display | `URL.createObjectURL` of IndexedDB blobs | `convertFileSrc(thumbPath)` through Tauri's asset protocol (scope = the library folder only; once the library/cache can move, widened at start-up to the chosen `originals/` and `thumbs/` folders, `docs/STORAGE.md`) |
 | Analysis | SigLIP in a Web Worker, WASM, one image at a time | `ort` (ONNX Runtime) with DirectML (Windows) / CoreML (macOS), CPU fallback. One background queue thread; results written to SQLite and sent to the UI in batches |
 | Search | cosine over all embeddings in JS | embeddings kept in memory in Rust (`Vec<f32>`, loaded at start, updated on analysis); query text embedded with `tokenizers` + the text model; same floor/window rule |
 | `.bo` | fflate in JS (`storage/bo/`) | `zip` crate, streaming straight from/to disk; same `formatVersion 1` layout (`docs/BO_FORMAT.md`) |
@@ -37,6 +37,8 @@ lib.rs            builder: plugins, state, command registration, start-up (open 
 commands/         thin #[tauri::command] wrappers only: parse args, call core, map errors to strings
 db/               connection, numbered migrations (001_init.sql ...), one module per table group (boards, assets, placements, ...)
 files.rs          library paths (originals/<hash>.<ext>, thumbs/<hash>.webp), atomic writes (.tmp + rename)
+settings.rs       (planned, docs/STORAGE.md) settings.json in the fixed config folder: libraryDir, cacheDir, pending cache clear
+storage.rs        (planned, docs/STORAGE.md) resolve library + cache roots, folder checks, sizes, move/verify library, clear cache
 import/           pipeline: hash, decode, thumb, palette (port of categorize/color), dedupe
 analyze/          model session, preprocessing, tokenizer, queue thread, type/space scoring (port of labels + pickTypes)
 search.rs         in-memory index + cosine + floor/window
@@ -46,6 +48,8 @@ migrate_idb.rs    receives the old IndexedDB library from the webview (step 1)
 
 Rules: `commands/` holds no logic; core modules don't know about Tauri (plain functions, testable with `cargo test`).
 SQL only in `db/`. Paths only from `files.rs` (Tauri path API for the app-data root, never hard-coded separators).
+From the storage plan on (`docs/STORAGE.md`), the library root and cache root come from `storage.rs` / `settings.json`,
+not `app_data_dir()`: the library may be on another drive, and thumbnails live under the cache root, not the library.
 
 ## JS side
 

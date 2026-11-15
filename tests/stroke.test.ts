@@ -50,3 +50,13 @@ describe('ink stroke geometry', () => {
     expect(hitsStroke([5, 5, 1], 6, 6, 6)).toBe(true)
   })
 })
+
+import { erasePoints as _erase } from '../src/canvas/ink/stroke'
+import { it as _it, expect as _expect } from 'vitest'
+_it('erasePoints cuts a long segment in the middle and keeps both ends', () => {
+  const pieces = _erase([0, 0, 1, 100, 0, 1], 4, 50, 0, 5)!
+  _expect(pieces).toHaveLength(2)
+  _expect(pieces[0][0]).toBe(0)
+  _expect(pieces[1][pieces[1].length - 3]).toBe(100)
+  _expect(_erase([0, 0, 1, 100, 0, 1], 4, 50, 40, 5)).toBeNull()
+})

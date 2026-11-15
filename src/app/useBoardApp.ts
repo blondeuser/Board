@@ -4,7 +4,7 @@ import { newId } from '../shared/id'
 import { db } from '../backend'
 import { makeThumbnail } from '../items/importImage'
 import { gridLayout } from '../canvas/viewport'
-import { strokeBounds, toLocal } from '../canvas/ink/stroke'
+import { erasePoints, strokeBounds, toLocal } from '../canvas/ink/stroke'
 import { alignPatches, reorderZ, type AlignMode, type OrderMode } from '../canvas/arrange'
 import { analyseAsset, embedText, setModelProgressListener } from '../categorize/style/classifier'
 import { queryToPrompt, semanticMatches } from '../categorize/style/search'
@@ -349,10 +349,29 @@ export function useBoardApp() {
   }, [])
 
   /** Pen eraser: removes strokes only (no selection or connection changes). */
-  const eraseInk = useCallback((ids: string[]) => {
-    setPlacements((ps) => ps.filter((p) => !ids.includes(p.id)))
-    setSelection((s) => s.filter((id) => !ids.includes(id)))
-    void db.deletePlacements(ids)
+  const eraseInk = useCallback((x: number, y: number, r: number) => {
+    const { placements: ps, activeId } = latest.current
+    const removed: string[] = []
+    const added: Placement[] = []
+    for (const p of ps) {
+      if (p.kind !== 'ink' || !p.ink || p.boardId !== activeId) continue
+      if (x < p.x - r || x > p.x + p.w + r || y < p.y - r || y > p.y + p.h + r) continue
+      const pieces = erasePoints(p.ink.points, p.ink.size, x - p.x, y - p.y, r)
+      if (!pieces) continue
+      removed.push(p.id)
+      for (const piece of pieces) {
+        const world = toLocal(piece, -p.x, -p.y)
+        const b = strokeBounds(world, p.ink.size)
+        added.push({ ...p, id: newId(), x: b.x, y: b.y, w: b.w, h: b.h, ink: { ...p.ink, points: toLocal(world, b.x, b.y) } })
+      }
+    }
+    if (!removed.length) return
+    // pointer events can outrun React's render: keep the ref current so the next call cuts the new pieces, not the old stroke
+    latest.current.placements = [...ps.filter((p) => !removed.includes(p.id)), ...added]
+    setPlacements((cur) => [...cur.filter((p) => !removed.includes(p.id)), ...added])
+    setSelection((s) => s.filter((id) => !removed.includes(id)))
+    void db.deletePlacements(removed)
+    if (added.length) void db.savePlacements(added)
   }, [])
 
   const editNote = useCallback((id: string, text: string) => {

@@ -12,7 +12,7 @@ use db::Db;
 use files::Files;
 use serde_json::Value;
 use std::{collections::HashMap, path::PathBuf, sync::Mutex};
-use tauri::{ipc::Request, Manager, State};
+use tauri::{ipc::Request, Emitter, Manager, State, WebviewUrl};
 
 struct Store {
     db: Mutex<Db>,
@@ -163,7 +163,7 @@ fn asset_paths(s: State<Store>, id: String) -> Vec<Option<String>> {
 
 /// Saves a board as a .bo at `path` (written to a temp file first, then renamed). Returns { images }.
 #[tauri::command]
-async fn export_bo(s: State<'_, Store>, board_id: String, path: String, exported_at: String) -> Res<Value> {
+async fn export_bo(app: tauri::AppHandle, s: State<'_, Store>, board_id: String, path: String, exported_at: String) -> Res<Value> {
     let all = s.db()?.load_all()?;
     let list = |k: &str| all[k].as_array().cloned().unwrap_or_default();
     let board = list("boards").into_iter().find(|b| b["id"] == board_id.as_str()).ok_or("board not found")?;
@@ -188,11 +188,15 @@ async fn export_bo(s: State<'_, Store>, board_id: String, path: String, exported
     let content = bo::Content { board, placements, assets, categories };
     let count = content.assets.len();
     let by_hash: HashMap<String, String> = content.assets.iter().filter_map(|a| Some((a["hash"].as_str()?.to_string(), a["id"].as_str()?.to_string()))).collect();
+    let total = by_hash.len();
+    let mut written = 0;
     let tmp = PathBuf::from(format!("{path}.tmp"));
     let out = std::fs::File::create(&tmp).map_err(|e| e.to_string())?;
     let result = bo::write(std::io::BufWriter::new(out), &content, env!("CARGO_PKG_VERSION"), &exported_at, |hash, ext| {
         let id = by_hash.get(hash).ok_or("missing image")?;
         let _ = ext;
+        written += 1;
+        let _ = app.emit("bo-progress", serde_json::json!({ "done": written, "total": total }));
         std::fs::read(s.files.find_original(id).ok_or("missing image")?).map_err(|e| e.to_string())
     });
     if let Err(e) = result {
@@ -206,7 +210,7 @@ async fn export_bo(s: State<'_, Store>, board_id: String, path: String, exported
 /// Opens a .bo as a new board: images already in the library (same hash) are reused, new ones get files + thumbnails,
 /// categories match by name. Everything is decoded before anything is written. Returns { boardId, name, newImages }.
 #[tauri::command]
-async fn import_bo(s: State<'_, Store>, path: String) -> Res<Value> {
+async fn import_bo(app: tauri::AppHandle, s: State<'_, Store>, path: String) -> Res<Value> {
     let content = bo::read(std::io::BufReader::new(std::fs::File::open(&path).map_err(|_| "Could not open that file.".to_string())?))?;
     let all = s.db()?.load_all()?;
     let lib_assets = all["assets"].as_array().cloned().unwrap_or_default();
@@ -232,11 +236,13 @@ async fn import_bo(s: State<'_, Store>, path: String) -> Res<Value> {
     let plan = bo::plan(&content, &hashes, &lib_cats, now, bo::new_id);
     // Decode everything first so a bad image fails the import before anything is written.
     let mut ready = vec![];
+    let total = plan.add_assets.len();
     for (asset, ext) in &plan.add_assets {
         let hash = asset["hash"].as_str().unwrap_or("");
         let bytes = bo::read_image(std::io::BufReader::new(std::fs::File::open(&path).map_err(|e| e.to_string())?), hash, ext)?;
         let a = import::analyze(&bytes).map_err(|_| "Could not read an image in this file.".to_string())?;
         ready.push((asset.clone(), bytes, a));
+        let _ = app.emit("bo-progress", serde_json::json!({ "done": ready.len(), "total": total }));
     }
     for (asset, bytes, a) in &ready {
         let id = asset["id"].as_str().unwrap_or("");
@@ -268,6 +274,47 @@ async fn import_bo(s: State<'_, Store>, path: String) -> Res<Value> {
 /// The .bo this process was started with, once (then None).
 #[tauri::command]
 fn take_launch_file(s: State<Store>) -> Option<String> { s.launch_file.lock().ok()?.take() }
+
+/// Width of the Pinterest panel in logical pixels.
+static PANEL_W: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(480);
+
+/// Lays the main webview and the Pinterest panel (a child webview with no capabilities, so its scripts can't call REMind) side by side.
+fn layout(app: &tauri::AppHandle) {
+    let (Some(win), Some(main)) = (app.get_window("main"), app.get_webview("main")) else { return };
+    let Ok(size) = win.inner_size() else { return };
+    let panel = app.get_webview("pinterest");
+    let pw = if panel.is_some() { (PANEL_W.load(std::sync::atomic::Ordering::Relaxed) as f64 * win.scale_factor().unwrap_or(1.0)) as u32 } else { 0 }.min(size.width / 2);
+    let _ = main.set_position(tauri::PhysicalPosition::new(0, 0));
+    let _ = main.set_size(tauri::PhysicalSize::new(size.width - pw, size.height));
+    if let Some(p) = panel {
+        let _ = p.set_position(tauri::PhysicalPosition::new((size.width - pw) as i32, 0));
+        let _ = p.set_size(tauri::PhysicalSize::new(pw, size.height));
+    }
+}
+
+/// Shows or hides Pinterest as a panel inside the main window. Returns true when it is now shown.
+#[tauri::command]
+async fn toggle_pinterest(app: tauri::AppHandle) -> Res<bool> { // async: building a webview from a sync command runs on the main thread and deadlocks on Windows
+    if let Some(p) = app.get_webview("pinterest") {
+        p.close().map_err(|e| e.to_string())?;
+        layout(&app);
+        let _ = app.emit("pinterest-open", false);
+        return Ok(false);
+    }
+    let win = app.get_window("main").ok_or("no main window")?;
+    let url: tauri::Url = "https://www.pinterest.com".parse().map_err(|e| format!("{e}"))?;
+    win.add_child(tauri::webview::WebviewBuilder::new("pinterest", WebviewUrl::External(url)), tauri::LogicalPosition::new(0.0, 0.0), tauri::LogicalSize::new(PANEL_W.load(std::sync::atomic::Ordering::Relaxed) as f64, 600.0)).map_err(|e| e.to_string())?;
+    layout(&app);
+    let _ = app.emit("pinterest-open", true);
+    Ok(true)
+}
+
+/// Sets the Pinterest panel width (logical px, clamped) while the user drags the handle.
+#[tauri::command]
+fn set_pinterest_width(app: tauri::AppHandle, w: u32) {
+    PANEL_W.store(w.clamp(240, 1600), std::sync::atomic::Ordering::Relaxed);
+    layout(&app);
+}
 
 #[derive(serde::Serialize)]
 struct Analysis {
@@ -333,10 +380,11 @@ pub fn run() {
             app.manage(Store { db: Mutex::new(db), files: Files(root.join("library")), model_dir, analyzer: Mutex::new(None), index: Mutex::new(None), launch_file: Mutex::new(std::env::args().skip(1).find(|a| a.to_lowercase().ends_with(".bo"))) });
             Ok(())
         })
+        .on_window_event(|w, e| { if let tauri::WindowEvent::Resized(_) = e { if w.label() == "main" { layout(w.app_handle()); } } })
         .invoke_handler(tauri::generate_handler![
             load_all, save_boards, save_assets, save_placements, save_connections, save_categories, delete_board,
             delete_assets, delete_placements, delete_connections, delete_category, clear_all, add_asset, save_thumb, import_image,
-            asset_paths, meta_get, meta_set, analyze_asset, search_meaning, export_bo, import_bo, take_launch_file
+            asset_paths, meta_get, meta_set, analyze_asset, search_meaning, export_bo, import_bo, take_launch_file, toggle_pinterest, set_pinterest_width
         ])
         .run(tauri::generate_context!())
         .expect("error while running REMind");

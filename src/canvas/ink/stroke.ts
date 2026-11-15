@@ -105,3 +105,35 @@ export function hitsStroke(pts: number[], size: number, x: number, y: number, to
   }
   return false
 }
+
+/**
+ * Partial erase: removes the part of a stroke within `r` of (cx, cy) (stroke space) and returns what is left as pieces
+ * (each ≥ 2 samples, same flat format), or null when the eraser touches nothing. Long segments are resampled first
+ * so a hit between two distant samples still cuts.
+ */
+export function erasePoints(pts: number[], size: number, cx: number, cy: number, r: number): number[][] | null {
+  const reach = r + size / 4
+  const step = Math.max(reach / 2, 0.5)
+  const dense: number[] = pts.slice(0, 3)
+  for (let i = 3; i < pts.length; i += 3) {
+    const [ax, ay, ap] = [pts[i - 3], pts[i - 2], pts[i - 1]]
+    const n = Math.ceil(Math.hypot(pts[i] - ax, pts[i + 1] - ay) / step)
+    for (let k = 1; k <= n; k++) {
+      const t = k / n
+      dense.push(ax + (pts[i] - ax) * t, ay + (pts[i + 1] - ay) * t, ap + (pts[i + 2] - ap) * t)
+    }
+  }
+  const pieces: number[][] = []
+  let cur: number[] = []
+  let cut = false
+  for (let i = 0; i < dense.length; i += 3) {
+    if (Math.hypot(dense[i] - cx, dense[i + 1] - cy) <= reach) {
+      cut = true
+      if (cur.length >= 6) pieces.push(simplify(cur, 0.2))
+      cur = []
+    } else cur.push(dense[i], dense[i + 1], dense[i + 2])
+  }
+  if (!cut) return null
+  if (cur.length >= 6) pieces.push(simplify(cur, 0.2))
+  return pieces
+}

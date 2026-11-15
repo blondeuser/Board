@@ -14,7 +14,8 @@ import { Sidebar } from '../ui/Sidebar'
 import { Inspector } from '../ui/Inspector'
 import type { ShapeKind } from '../shared/types'
 import { Library } from '../library/Library'
-import { BentoIcon, DiamondIcon, EllipseIcon, FitIcon, LinkIcon, RectIcon, TriangleIcon, MinusIcon, NoteIcon, PenIcon, TagIcon, TextIcon, PlusIcon } from '../ui/icons'
+import { PinterestButton } from '../ui/PinterestHandle'
+import { BentoIcon, DiamondIcon, EllipseIcon, FitIcon, LinkIcon, RectIcon, TriangleIcon, MinusIcon, NoteIcon, PenIcon, EraserIcon, TagIcon, TextIcon, PlusIcon } from '../ui/icons'
 
 function confirmDelete(app: BoardApp, assetIds: string[]) {
   const boards = new Set(app.allPlacements.filter((p) => assetIds.includes(p.assetId)).map((p) => p.boardId)).size
@@ -54,6 +55,7 @@ export function App() {
     try { localStorage.setItem('board.tagBorders', showTags ? 'off' : 'on') } catch { /* private window */ }
   }
   const [penMode, setPenMode] = useState(false)
+  const [eraseMode, setEraseMode] = useState(false)
   const [pen, setPen] = useState(() => {
     try { return { color: 'auto', size: 4, ...JSON.parse(localStorage.getItem('board.pen') ?? '{}') } } catch { return { color: 'auto', size: 4 } }
   })
@@ -301,6 +303,7 @@ export function App() {
           locked={bento}
           tool={tool}
           penMode={penMode}
+          eraseMode={eraseMode}
           pen={pen}
           onInk={app.addInk}
           onEraseInk={app.eraseInk}
@@ -324,11 +327,12 @@ export function App() {
         <div className="tools" onPointerDown={(e) => e.stopPropagation()}>
           <button className={'icon' + (showTags ? ' on' : '')} title={showTags ? 'Hide tag borders' : 'Show tag borders'} aria-pressed={showTags} onClick={toggleTags}><TagIcon /></button>
           <button className={'icon' + (bento ? ' on' : '')} title={bento ? 'Back to free layout' : 'Cards mode (bento grid)'} aria-pressed={bento} onClick={toggleBento}><BentoIcon /></button>
+          <PinterestButton />
         </div>
         {!bento && <div className="drawbar" onPointerDown={(e) => e.stopPropagation()}>
           <button className="icon" title="Add text (T)" onClick={() => app.addText(worldPointAt())}><TextIcon /></button>
           <button className="icon" title="New note" onClick={() => app.addNote(worldPointAt())}><NoteIcon /></button>
-          <button className={'icon' + (penMode ? ' on' : '')} title="Pen: draw with a stylus (P). The pen's eraser end erases strokes." aria-pressed={penMode} onClick={() => setPenMode(!penMode)}><PenIcon /></button>
+          <button className={'icon' + (penMode ? ' on' : '')} title="Pen: draw with a stylus (P). The pen's eraser end erases strokes." aria-pressed={penMode} onClick={() => { setPenMode(!penMode); setEraseMode(false) }}><PenIcon /></button>
           {penMode && (
             <>
               {PEN_COLORS.map((c) => (
@@ -337,6 +341,7 @@ export function App() {
               {PEN_SIZES.map((n) => (
                 <button key={n} className={'pen-size' + (pen.size === n ? ' on' : '')} title={'Line ' + n} aria-label={'Line size ' + n} onClick={() => setPen({ ...pen, size: n })}><i style={{ width: n + 2, height: n + 2 }} /></button>
               ))}
+              <button className={'icon' + (eraseMode ? ' on' : '')} title="Eraser: touch a stroke to remove it" aria-pressed={eraseMode} onClick={() => setEraseMode(!eraseMode)}><EraserIcon /></button>
             </>
           )}
           <hr />

@@ -28,3 +28,5 @@ export const TrashIcon = () => <Svg><path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.
 export const DownloadIcon = () => <Svg><path d="M8 2.5v8M4.8 7.6L8 10.8l3.2-3.2M3 13.5h10" /></Svg>
 export const UploadIcon = () => <Svg><path d="M8 10.8v-8M4.8 5.7L8 2.5l3.2 3.2M3 13.5h10" /></Svg>
 export const SidebarIcon = () => <Svg><rect x="2.5" y="3" width="11" height="10" rx="2" /><path d="M6.5 3v10" /></Svg>
+export const PinterestIcon = () => <Svg><circle cx="8" cy="8" r="6" /><path d="M7 12.5L8.2 6.8M6.2 8.8c-.5-2.4 1.2-3.6 2.6-3.3 1.6.4 1.5 2.6.3 3.6-.8.6-1.6.3-1.7-.4" /></Svg>
+export const EraserIcon = () => <Svg><path d="M9.2 3l4 4-5.5 5.5H5.2L2.8 10.1a1 1 0 010-1.4z" /><path d="M5.8 6.4l4 4M7.5 12.5h6" /></Svg>

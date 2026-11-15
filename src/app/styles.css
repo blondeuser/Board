@@ -458,3 +458,12 @@ button.status { border: 0; font: inherit; font-size: 15px; cursor: default; }
 .pen-stats dt { color: var(--muted); }
 .pen-stats dd { margin: 0; }
 .pen-actions { display: flex; gap: 16px; }
+
+/* .bo open / export progress: a floating pill like the other panels, bottom right */
+.bo-progress { position: fixed; right: 16px; bottom: 16px; z-index: 9999; display: flex; align-items: center; gap: 14px; padding: 9px 18px; background: var(--panel); border-radius: 999px; box-shadow: var(--shadow-md); font-size: 15px; }
+.bo-progress em { color: var(--muted); }
+.bo-track { width: 140px; height: 4px; border-radius: 999px; background: var(--line); overflow: hidden; }
+.bo-track i { display: block; height: 100%; border-radius: inherit; background: var(--accent); transition: width 0.15s; }
+.bo-track i.indeterminate { width: 40%; animation: bo-slide 1s ease-in-out infinite alternate; }
+@keyframes bo-slide { from { transform: translateX(0); } to { transform: translateX(150%); } }
+@media (prefers-reduced-motion: reduce) { .bo-track i.indeterminate { animation: none; width: 100%; opacity: 0.5; } }

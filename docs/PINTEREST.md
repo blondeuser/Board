@@ -1,6 +1,6 @@
 # Pinterest in REMind
 
-Plan for browsing Pinterest inside the desktop app and dragging images onto a board. Planned 2026-11-15; nothing built yet. Status lives in `PROGRESS.md` §6, the decision in `MEMORY.md`.
+Plan for browsing Pinterest inside the desktop app and dragging images onto a board. Planned 2026-11-15. **Built so far:** the Pinterest view as a docked panel (steps 1 and 5, see below); the drop spike logger. Steps 0, 2, 3 are still open. Status lives in `PROGRESS.md` §6, the decision in `MEMORY.md`.
 
 ## 1. Goal
 
@@ -45,7 +45,8 @@ Each step is small, testable and committed on its own. Ask before starting the n
 - Record the payloads in §9 and save 3-5 real `text/html` payloads to `tests/fixtures/pinterest/`.
 - **Decide:** does a plain drag carry the image URL on both systems? If yes → steps 1-3 as written. If no (Pinterest blocks dragging, or one OS drops nothing) → fallback in §6.
 
-### Step 1: Pinterest window
+### Step 1: Pinterest window — built as the docked panel (see step 5)
+Built 2026-11-15 as `toggle_pinterest` (child webview, label `pinterest`, no capabilities), toolbar Pinterest button + File > Pinterest Panel, not the separate window described next; window size/position are not remembered and sign-in persistence is unchecked.
 - Rust command `open_pinterest` in `lib.rs`: builds a `WebviewWindow` with label `pinterest`, `WebviewUrl::External("https://www.pinterest.com")`, title "Pinterest". If it is already open, focus it instead.
 - Remembers its size and position (meta table: `meta_set("pinterestWindow", …)`), opens beside the main window by default.
 - Menu: **File > Open Pinterest** (and a shortcut, e.g. Ctrl/Cmd+Shift+P). Desktop only; hidden in the browser dev mode (`isDesktop()`).
@@ -70,7 +71,8 @@ Each step is small, testable and committed on its own. Ask before starting the n
 ### Step 4: multi-select drag (if the spike shows it's possible)
 - Pinterest has no multi-select drag; instead: drag several pins one after another quickly, each drop queued (no blocking dialog). Check that 10 fast drops all land, in order, without UI lag.
 
-### Step 5 (later, separate approval): docked side panel
+### Step 5: docked side panel — built 2026-11-15 (at my request, Tauri `unstable` feature on)
+Done: panel on the right of the main window, `set_pinterest_width` + drag handle, × close (`src/ui/PinterestHandle.tsx`). Must be an async command (a sync one froze the app on Windows). Not done: remember the width, hide the panel while the Library view is open.
 - Pinterest as a resizable panel inside the main window instead of a second window. Needs Tauri's multi-webview API (`tauri` feature `unstable`): **ask before enabling**. Only worth it if the second window feels clumsy in real use.
 
 ### Step 6 (later, separate approval): "Grab this board / these results"

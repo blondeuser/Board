@@ -17,6 +17,7 @@ Project docs, one job each:
 | `docs/RUST_BACKEND.md` | Rust backend plan: what moves to Rust, layout, IPC rules, migration, steps | The backend design or a step changes |
 | `docs/PEN_INPUT.md` | Wacom / pen drawing on the canvas: input, ink data model, rendering, phases | Pen or ink behaviour, stroke format or phases change |
 | `docs/PINTEREST.md` | Pinterest window + drag-to-board: options, steps, fallbacks, spike results | A Pinterest step, the drop handling or its permissions change |
+| `docs/STORAGE.md` | Where the library and cache live on disk, moving the library, Clear cache, Settings → Storage, start-up rules | Folder layout, `settings.json`, the move/verify flow or the Settings tab change |
 
 Read a `docs/` file only when the task touches it.
 
@@ -26,7 +27,7 @@ Read a `docs/` file only when the task touches it.
 - **End of a session (or after each finished task):** update `PROGRESS.md` (tick tasks, dated log entry with commit hash, "Last updated"); record new rules/decisions in `MEMORY.md`.
 - If code and `MEMORY.md` disagree, find out which is right before changing either.
 - Run tests and typecheck before every commit; commit in small steps.
-- Stack is scaffolded (2026-11-14). Confirm with me before adding heavy dependencies (canvas engine, ML runtime). Tauri 2 + its http/dialog/fs plugins approved 2026-11-15 for the Windows demo installer; the opener plugin (system-browser links) was added with it, so tell me before adding any other plugin. Rust crates approved 2026-11-15 for the Rust backend (`docs/RUST_BACKEND.md`): `rusqlite` (bundled), `image`, `fast_image_resize`, `sha2`, `rayon`, `zip`, `serde`/`serde_json`, `ort`, `tokenizers`; ask before any other crate.
+- Stack is scaffolded (2026-11-14). Confirm with me before adding heavy dependencies (canvas engine, ML runtime). Tauri 2 + its http/dialog/fs plugins approved 2026-11-15 for the Windows demo installer; the opener plugin (system-browser links) was added with it, so tell me before adding any other plugin. Rust crates approved 2026-11-15 for the Rust backend (`docs/RUST_BACKEND.md`): `rusqlite` (bundled), `image`, `fast_image_resize`, `sha2`, `rayon`, `zip`, `serde`/`serde_json`, `ort`, `tokenizers`; ask before any other crate. Tauri's `unstable` feature is on for the docked Pinterest child webview (asked for 2026-11-15). For the storage plan (`docs/STORAGE.md`), `rusqlite` feature `backup` is fine (same crate); `windows-sys` and `libc` (drive type, free space) are proposed, not approved yet.
 
 ## Environment
 
@@ -43,6 +44,7 @@ Read a `docs/` file only when the task touches it.
 - **Version:** bump it for every installer you hand out, in all three places together: `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`. Patch (`0.1.1`) for fixes, minor (`0.2.0`) for features. The MSI refuses to install over the same version; the number also tells which build is on a PC.
 - **Never change the identifier `com.remstudio.remind`** (`tauri.conf.json`). Windows and WebView2 key the install and the app data folder (`%LOCALAPPDATA%\com.remstudio.remind\`, holds the IndexedDB library) on it; a new identifier = a second app with an empty library.
 - **Ship the NSIS `-setup.exe` only.** Running a newer one over an installed copy upgrades in place and keeps the library. Don't mix MSI and NSIS installs on one PC (two separate installs).
+- **Where data lives (desktop):** library (`board.sqlite` + `originals/`) defaults to `%APPDATA%\com.remstudio.remind\` and can be moved by the user; thumbnails go to a separate cache folder (planned, `docs/STORAGE.md`). Rust code gets every path from `storage.rs` / `files.rs`, never from `app_data_dir()` directly, and never assumes the library is on C:.
 - **Stored data outlives the app:** every new version must open data written by older ones. Any change to stored data gets a numbered migration (see Architecture); never assume a fresh database.
 - **Updates are manual for now:** send the new `-setup.exe`. Auto-update (Tauri updater plugin + GitHub Releases) is planned in `PROGRESS.md` §5. Its signing key must never be committed or lost: without it, installed copies can't update.
 

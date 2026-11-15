@@ -4,7 +4,7 @@ import { GRID, clampZoom, screenToWorld, snapDelta, zoomAt } from './viewport'
 import { connectorPath } from './connector'
 import { LinkIcon } from '../ui/icons'
 import { openExternal } from '../shared/external'
-import { hitsStroke, outlinePath, pressureWidth, simplify } from './ink/stroke'
+import { outlinePath, pressureWidth, simplify } from './ink/stroke'
 import { BENTO_COLUMNS, BENTO_CELL, BENTO_GAP } from './bento'
 
 const BENTO_PAD = 40
@@ -36,10 +36,13 @@ interface Props {
   onDraw: (r: { x: number; y: number; w: number; h: number }) => void
   /** Pen mode: the pen tip draws ink (mouse and touch keep editing). The pen's eraser end erases ink in any mode. */
   penMode: boolean
+  /** Pen mode's eraser button: any pointer (pen, mouse, touch) erases strokes instead of drawing. */
+  eraseMode?: boolean
   pen: { color: string; size: number }
   /** A finished stroke: absolute world points [x, y, pressure, ...], line width in world units. */
   onInk: (stroke: { points: number[]; color: string; size: number }) => void
-  onEraseInk: (ids: string[]) => void
+  /** Erase ink within `r` world units of (x, y): strokes are cut, not removed whole. */
+  onEraseInk: (x: number, y: number, r: number) => void
   /** CSS box-shadow for the tag border of a card ('' = none). */
   ring: (p: Placement) => string
   dimmed: (p: Placement) => boolean
@@ -140,6 +143,12 @@ export function Canvas(props: Props) {
     try { e.currentTarget.setPointerCapture(e.pointerId) } catch { /* synthetic pointer (smoke test): no capture */ }
 
     if (e.pointerType === 'pen') penAt.current = Date.now()
+    if (p.penMode && p.eraseMode && !panning && !p.locked) {
+      e.preventDefault()
+      drag.current = { kind: 'erase', hit: new Set() }
+      eraseAt(e)
+      return
+    }
     if (e.pointerType === 'pen' && !panning && !p.locked) {
       if (e.buttons & 32 || e.button === 5) {
         drag.current = { kind: 'erase', hit: new Set() }
@@ -201,11 +210,8 @@ export function Canvas(props: Props) {
     const d = drag.current
     if (d?.kind !== 'erase') return
     const w = worldOf(e)
-    const ids = live.current.placements
-      .filter((i) => i.kind === 'ink' && i.ink && !d.hit.has(i.id) && hitsStroke(i.ink.points, i.ink.size, w.x - i.x, w.y - i.y, 4 / live.current.view.zoom))
-      .map((i) => i.id)
-    ids.forEach((id) => d.hit.add(id))
-    if (ids.length) live.current.onEraseInk(ids)
+    const { pen, view } = live.current
+    live.current.onEraseInk(w.x, w.y, Math.max(pen.size, 6 / view.zoom))
   }
 
   // Live stroke: refs and a screen-space canvas only, no React state per sample (docs/PEN_INPUT.md).
