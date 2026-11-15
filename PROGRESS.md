@@ -2,7 +2,7 @@
 
 Living status. **Update at the end of every work session.** Rules live in `CLAUDE.md`, business logic in `MEMORY.md`.
 
-_Last updated: 2026-11-15 (v0.3.0, step 3)_
+_Last updated: 2026-11-15 (v0.4.0: pen ink, text, .bo in Rust, CSP)_
 
 ## Status
 
@@ -111,7 +111,7 @@ _Last updated: 2026-11-15 (v0.3.0, step 3)_
 - [ ] Other reference sites behind the same `sources/<site>/` shape (parse + client + source), e.g. IALD, Darc awards, archdaily lighting tag
 
 ### 7. Pen drawing (Wacom), planned 2026-11-15 — `docs/PEN_INPUT.md`
-- [ ] Phase 0 spike: pointer log overlay; check `pointerType`/`pressure`/`tilt`/`buttons`/coalesced events with the Wacom on Windows (Windows Ink on and off; Edge + installed app) and macOS (WKWebView); record results in `docs/PEN_INPUT.md` §1
+- [~] Phase 0 spike (tool built 2026-11-15, Help > Pen test; real-Wacom results pending): pointer log overlay; check `pointerType`/`pressure`/`tilt`/`buttons`/coalesced events with the Wacom on Windows (Windows Ink on and off; Edge + installed app) and macOS (WKWebView); record results in `docs/PEN_INPUT.md` §1
 - [ ] Phase 1 undo/redo: command stack for all canvas edits, Ctrl/Cmd+Z, Shift+Ctrl/Cmd+Z, Ctrl+Y
 - [ ] Phase 2 basic ink: pen mode toggle (`P`), pen tool with pressure, live canvas overlay + SVG commit, colours/sizes, stroke eraser + eraser end, select/move/delete strokes, `Placement` kind `ink` + IndexedDB migration, hidden in Cards mode
 - [ ] Phase 3: `.bo` formatVersion 2 (ink + connections), board JPEG export draws ink, perf check 500 photos + 2,000 strokes
@@ -170,6 +170,31 @@ _Last updated: 2026-11-15 (v0.3.0, step 3)_
 | 2026-11-14 | Imported images carry `Asset.source` (link, title, categories, credit, details) instead of auto-creating custom categories | 68 award categories per year would flood the sidebar; source data stays searchable and groupable (Award tab) and keeps photographer credits |
 
 ## Log
+
+### 2026-11-15 (v0.4.0 release build)
+- Version **0.4.0** in package.json, tauri.conf.json, Cargo.toml (and the .bo writer's appVersion). Built `REMind_0.4.0_x64-setup.exe` (170.65 MiB, NSIS) with pen ink, text, Rust .bo, tighter CSP, .bo icon hook. Checked before building: typecheck, 78 TS tests, 33 Rust tests. **Installer not installed/tried yet** (Explorer icon, double-click open, upgrade over 0.3.0).
+
+### 2026-11-15 (Rust backend: step 5 clean-up, .bo paper icon)
+- **CSP tightened** (`tauri.conf.json`): self + the asset/ipc protocols, no model hub, CDN, wasm or blob workers; `devCsp` adds the Vite server. Checked on the **release exe**: 25 s of use plus `smoke-bo.mjs` (drop import, export, import) gave 0 console errors.
+- **Old IndexedDB retired:** `migrate.ts` stamps the migration date; 30 days after a verified migration (`RETIRE_AFTER_DAYS`) it deletes the old `board` IndexedDB and records `cleaned`. Older installs that stored `1` get their clock started on first run of this version. 4 tests (`tests/migrate.test.ts`). Until then the safety net stays.
+- **.bo file icon:** `scripts/make-bo-icon.mjs` draws a paper sheet (folded corner, one red dot) with `</REM/>` as 5x7 dot-matrix glyphs, in the style of Nothing's type. **It is not the real Nothing typeface** (licensed, not in the repo); say if you have the font file and I redraw it with that. Output `src-tauri/icons/bo-file.ico` (16-256 px), shipped as a bundle resource; `src-tauri/windows/hooks.nsh` (NSIS post-install hook) registers `.bo` as "REMind board" with that icon and an open command. Double-clicking a .bo starts the app (or runs it) with the path as argument; `take_launch_file` hands it to the UI, which opens it as a new board.
+- **Not checked:** the installer was built (170.7 MB, hook compiled, icon staged at `iconso-file.ico`) but **not installed**, so the Explorer icon and double-click open are untested; a second double-click while the app is open starts a second window (no single-instance plugin). Windows may cache old icons until Explorer restarts. Not committed.
+
+### 2026-11-15 (Rust backend: step 4, .bo in Rust)
+- `src-tauri/src/bo.rs` (`zip` 2, deflate only): write, read, validate and the import plan (hash dedupe, categories by name, new board + ids), a port of `storage/bo/{write,read}.ts` with the same messages. Commands `export_bo` (streams originals from disk into a temp file, then renames; no image bytes through the UI) and `import_bo` (everything decoded before anything is written; fills in missing hashes on older library images; images get Rust thumbnails + palette only if new). Desktop **File > Save / Save As / Open** use them (native dialogs, path remembered per board); the browser dev mode keeps the fflate path. formatVersion is 2 when the board has ink **or text** (TS writer changed to match), else 1.
+- Tests: 10 Rust unit tests (round trip, version rule, refusals, missing image, plan cases, ids) incl. one that reads a file written by the real TS writer (`src-tauri/tests/fixtures/ts-written.bo`, made by `npx vite-node scripts/make-bo-fixture.ts`); `cargo test` 33 pass, typecheck, 74 TS tests. `scripts/smoke-bo.mjs` (desktop, CDP): scratch board with note + text + ink + one image, export, delete the image, import: copy has all 4 kinds, ink points and text format intact, image restored with a thumbnail; cleans up after itself.
+- **Not done / not checked:** drag-dropping a .bo onto the window, Windows file-association, opening a .bo whose images are AVIF/HEIC (Rust import rejects them like the drop import does), connections in `.bo` (still planned), large boards (hundreds of MB) not timed, the installed release build not tried. Not committed.
+
+### 2026-11-15 (plain text items with formatting)
+- New `Placement` kind `text` (`fmt: TextFormat`: font, size, colour, bold, italic, align; fonts are system stacks in `TEXT_FONTS`). Add with the **T** button in the bottom bar (before the note button) or the `T` key; double-click edits; an empty text box is deleted on blur. Selecting text shows Font / Size / B / I / alignment / colour in the inspector and applies to the whole selection. The next new text reuses the last used format. Borderless box that wraps at its width; free resize. Excluded from Cards mode and search dimming; kept by `.bo` import (written like notes; no format bump). `scripts/smoke-text.mjs` passes (add, format, reload, empty removed, delete). Typecheck clean, 74 tests. **Not done:** mixed formatting inside one text (format is per box), custom/bundled fonts, auto-height (box height is fixed; text overflows visibly), `.bo` docs mention of `fmt`, JPEG export of text. Not committed.
+
+### 2026-11-15 (pen drawing, phase 2: basic ink)
+- **Pen button** (bottom bar, after the note button; key `P`) turns pen mode on: the pen tip draws pressure-sensitive strokes, mouse/touch keep editing. 6 ink colours (first = theme text colour) and 3 line sizes appear next to it (kept in localStorage). The pen's **eraser end** removes strokes in any mode. Strokes are `Placement` kind `ink` (`InkStroke`: raw points x,y,pressure relative to the box; simplified on commit; outline recomputed as an SVG path, so no Rust or IndexedDB schema change). Live stroke draws on a screen-space canvas with coalesced events and refs only. Ink is click-selectable/movable/deletable, ignored by Cards (bento) mode and by search dimming, and the pen's long-press context menu is swallowed. Own outline code in `src/canvas/ink/stroke.ts` (no `perfect-freehand`).
+- `.bo`: ink boards are written as formatVersion 2 (others stay 1); reader accepts up to 2 and keeps ink. Tests: 8 stroke + 1 `.bo` (74 total), typecheck clean. `scripts/smoke-ink.mjs` (browser): pen outside pen mode draws nothing, one stroke = one item, mouse still does not draw, survives reload, eraser end removes it (eraser simulated with DOM PointerEvents since CDP cannot send buttons=32).
+- **Not done / not checked:** real Wacom (user to try in `tauri dev`), `tauri dev` smoke, undo/redo (phase 1: erased strokes cannot be brought back yet), board JPEG export does not include ink yet, connections still not in `.bo`, resize of ink is off, copy/paste of ink unchecked. Not committed.
+
+### 2026-11-15 (pen drawing, phase 0: Pen test panel)
+- **Help > Pen test…** (`src/ui/PenTest.tsx`, pure summary in `src/canvas/ink/probe.ts`, 6 tests): a pad that logs pointer type, pressure (distinct values), tilt, eraser end (`buttons & 32`), barrel button, hover, coalesced/predicted event support, samples per second and long-press context-menu events, with a plain-language verdict (real pressure / Windows Ink off / WebKit-style mouse with varying pressure / no pen) and a Copy results button. `scripts/smoke-pen.mjs` drives it with synthetic CDP pen events (pressure 0.10-0.94 read back, tilt, hover split, no errors). **Not done:** nothing run with the real Wacom yet. To do: Help > Pen test on Windows in the installed app (Windows Ink on, then off in Wacom Tablet Properties), then on the MacBook in `npx tauri dev`; paste each Copy results into `docs/PEN_INPUT.md` §1. Then Phase 1 (undo/redo). Typecheck clean, 65 tests. Not committed.
 
 ### 2026-11-15 (Rust backend: optimisation pass, measured)
 - Numbers (release build, this PC: RTX 3090; `cargo test --release bench -- --ignored --nocapture` and `bench_import`): **analysis q8 on CPU 44-49 ms/image** (about 22 images/s; a 3,700-photo LIT year in ~3 min); model load 1.1 s warm, 4.7 s cold. **Import of a 12 MP JPEG: 232 ms before, 112 ms after** (palette now taken from the 1280px display copy instead of the full image; thumbnail resize through `fast_image_resize`, SIMD; decode is now 77 ms of the 112; sha256 2 ms). JS fires imports in parallel and each runs in its own blocking task, so several cores are used already.

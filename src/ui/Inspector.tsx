@@ -1,7 +1,7 @@
 import type { BoardApp } from '../app/useBoardApp'
 import { COLOR_FAMILIES } from '../categorize/color'
 import { openExternal } from '../shared/external'
-import { NOTE_GREYS, NOTE_TINTS, type Placement } from '../shared/types'
+import { DEFAULT_TEXT_FORMAT, NOTE_GREYS, NOTE_TINTS, TEXT_COLORS, TEXT_FONTS, TEXT_SIZES, type Placement, type TextFormat } from '../shared/types'
 import { ALL_TYPE_LABELS, typeName } from '../categorize/style/labels'
 import { readableOn } from '../shared/contrast'
 import { DownloadIcon, TrashIcon } from './icons'
@@ -14,6 +14,8 @@ interface Props {
   notes?: Placement[]
   /** Selected shapes (board view only); they have a colour but no tags. */
   shapes?: Placement[]
+  /** Selected plain text items (board view only). */
+  texts?: Placement[]
   count: number
   onRemove: () => void
   removeTitle: string
@@ -22,7 +24,7 @@ interface Props {
 }
 
 /** Floating tag panel for the current selection. Edits apply to every selected image. */
-export function Inspector({ app, assetIds, notes = [], shapes = [], count, onRemove, removeTitle, library }: Props) {
+export function Inspector({ app, assetIds, notes = [], shapes = [], texts = [], count, onRemove, removeTitle, library }: Props) {
   if (!count) return null
   const assets = assetIds.map((id) => app.assets[id]).filter(Boolean)
   const has = (kind: 'colors' | 'categoryIds', v: string) => assets.length > 0 && assets.every((a) => a[kind].includes(v))
@@ -30,6 +32,9 @@ export function Inspector({ app, assetIds, notes = [], shapes = [], count, onRem
   const typesOn = [...new Set(assets.flatMap((a) => a.types ?? []))]
   const detecting = assets.some((a) => a.types === undefined)
   const tinted = [...notes, ...shapes]
+  const fmts = texts.map((t) => t.fmt ?? DEFAULT_TEXT_FORMAT)
+  const same = <K extends keyof TextFormat>(k: K, v: TextFormat[K]) => fmts.every((f) => f[k] === v)
+  const setFmt = (patch: Partial<TextFormat>) => app.setTextFormat(texts.map((t) => t.id), patch)
   const palette = assets.length === 1 ? assets[0].palette : []
   const source = assets.length === 1 ? assets[0].source : undefined
   const boardNames = library
@@ -39,7 +44,7 @@ export function Inspector({ app, assetIds, notes = [], shapes = [], count, onRem
   return (
     <div className="inspector" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
       <header>
-        <strong>{count === 1 ? (notes.length ? 'Note' : shapes.length ? 'Shape' : 'Image') : `${count} ${notes.length || shapes.length ? 'cards' : 'images'}`}</strong>
+        <strong>{count === 1 ? (notes.length ? 'Note' : shapes.length ? 'Shape' : texts.length ? 'Text' : 'Image') : `${count} ${notes.length || shapes.length || texts.length ? 'cards' : 'images'}`}</strong>
         <span className="row">
         <button className="icon" title="Export as JPEG" disabled={!assetIds.length} onClick={() => void app.exportJpeg(assetIds)}>
           <DownloadIcon />
@@ -85,6 +90,35 @@ export function Inspector({ app, assetIds, notes = [], shapes = [], count, onRem
             <option value="">+ Add to board</option>
             {app.boards.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
           </select>
+        </>
+      )}
+
+      {texts.length > 0 && (
+        <>
+          <h3>Text</h3>
+          <div className="chips">
+            <select className="add-type" aria-label="Font" value={same('font', fmts[0].font) ? fmts[0].font : ''} onChange={(e) => e.target.value && setFmt({ font: e.target.value })}>
+              {!same('font', fmts[0].font) && <option value="">Mixed</option>}
+              {Object.entries(TEXT_FONTS).map(([k, f]) => <option key={k} value={k}>{f.name}</option>)}
+            </select>
+            <select className="add-type" aria-label="Size" value={same('size', fmts[0].size) ? fmts[0].size : ''} onChange={(e) => e.target.value && setFmt({ size: Number(e.target.value) })}>
+              {!same('size', fmts[0].size) && <option value="">Mixed</option>}
+              {[...new Set([...TEXT_SIZES, fmts[0].size])].sort((a, b) => a - b).map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </div>
+          <div className="chips">
+            <button className={'chip plain' + (same('bold', true) ? ' on' : '')} aria-pressed={same('bold', true)} title="Bold" onClick={() => setFmt({ bold: !same('bold', true) })}><b>B</b></button>
+            <button className={'chip plain' + (same('italic', true) ? ' on' : '')} aria-pressed={same('italic', true)} title="Italic" onClick={() => setFmt({ italic: !same('italic', true) })}><i>I</i></button>
+            {(['left', 'center', 'right'] as const).map((a) => (
+              <button key={a} className={'chip plain' + (same('align', a) ? ' on' : '')} aria-pressed={same('align', a)} title={'Align ' + a} onClick={() => setFmt({ align: a })}>{a[0].toUpperCase()}</button>
+            ))}
+          </div>
+          <h3>Text colour</h3>
+          <div className="tints">
+            {TEXT_COLORS.map((c) => (
+              <button key={c} className={'swatch' + (same('color', c) ? ' on' : '')} style={{ background: c === 'auto' ? 'var(--text)' : c }} title={c === 'auto' ? 'Theme text colour' : c} onClick={() => setFmt({ color: c })} />
+            ))}
+          </div>
         </>
       )}
 

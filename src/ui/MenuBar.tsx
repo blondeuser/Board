@@ -1,7 +1,9 @@
+import { isDesktop } from '../shared/desktop'
 import { useEffect, useRef, useState } from 'react'
 import type { BoardApp } from '../app/useBoardApp'
 import { ALL_TYPE_LABELS } from '../categorize/style/labels'
 import { APP_VERSION, BUILD_DATE } from '../shared/version'
+import { PenTest } from './PenTest'
 import { CloseIcon, SidebarIcon } from './icons'
 
 const isMac = /Mac|iPhone|iPad/.test(navigator.platform)
@@ -26,6 +28,7 @@ interface Item {
 export function MenuBar({ app, sidebarOpen, onToggleSidebar, onLitImport }: { app: BoardApp; sidebarOpen: boolean; onToggleSidebar: () => void; onLitImport: () => void }) {
   const [open, setOpen] = useState<string | null>(null)
   const [about, setAbout] = useState(false)
+  const [penTest, setPenTest] = useState(false)
   const bar = useRef<HTMLElement>(null)
   const fileInput = useRef<HTMLInputElement>(null)
   const onBoard = app.screen === 'board'
@@ -50,7 +53,7 @@ export function MenuBar({ app, sidebarOpen, onToggleSidebar, onLitImport }: { ap
       title: 'File',
       items: [
         { label: 'New Board', run: app.addBoard },
-        { label: 'Open…', run: () => fileInput.current?.click() },
+        { label: 'Open…', run: () => (isDesktop() ? void app.openBo() : fileInput.current?.click()) },
         'sep',
         { label: 'Import from LIT Awards…', run: onLitImport },
         'sep',
@@ -73,7 +76,7 @@ export function MenuBar({ app, sidebarOpen, onToggleSidebar, onLitImport }: { ap
     },
     { title: 'Type', badge: filter.types.length, items: typeItems.length ? typeItems : [{ label: 'No types detected yet', disabled: true, run: () => {} }] },
     { title: 'Categories', badge: filter.categories.length, items: categoryItems },
-    { title: 'Help', items: [{ label: 'About REMind', run: () => setAbout(true) }] },
+    { title: 'Help', items: [{ label: 'Pen test…', run: () => setPenTest(true) }, 'sep', { label: 'About REMind', run: () => setAbout(true) }] },
   ]
 
   useEffect(() => {
@@ -147,6 +150,7 @@ export function MenuBar({ app, sidebarOpen, onToggleSidebar, onLitImport }: { ap
           if (f) void app.importBo(f)
         }}
       />
+      {penTest && <PenTest onClose={() => setPenTest(false)} />}
       {about && (
         <div className="modal-backdrop" onPointerDown={(e) => e.target === e.currentTarget && setAbout(false)}>
           <div className="modal" role="dialog" aria-modal="true" aria-labelledby="about-title">

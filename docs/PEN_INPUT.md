@@ -1,6 +1,6 @@
 # Pen input (Wacom) — freeform drawing plan
 
-Status: **planned, nothing built** (brainstorm 2026-11-15). Goal: draw and brainstorm on a board with a Wacom pen
+Status: **Phase 0 tool built 2026-11-15** (Help > Pen test; hardware results still to record in §1), the rest planned. Goal: draw and brainstorm on a board with a Wacom pen
 (pressure-sensitive strokes, eraser end, highlighter), next to the images, notes and shapes that are already there.
 Free layout only; Cards mode (bento) hides ink, like shapes.
 
@@ -161,7 +161,7 @@ Shift+Ctrl/Cmd+Z / Ctrl+Y, covering all existing edits, not just ink. Per board,
 |---|---|---|
 | 0. Spike | Debug page/overlay logging `pointerType`, `pressure`, `tilt`, `buttons`, coalesced count. Test Wacom on Windows (Ink on / off), in Edge + the installed app, and on the MacBook (Tauri dev) | Know where pressure works; risks in §1 confirmed or removed |
 | 1. Undo/redo | Command stack for all canvas edits | Undo works for move/resize/delete/paste/shapes/notes |
-| 2. Basic ink | Pen mode, pen tool (pressure), live canvas + SVG commit, colours/sizes, stroke eraser incl. eraser end, select/move/delete strokes, IndexedDB migration | Draw a page of notes over photos smoothly; reload keeps it |
+| 2. Basic ink (**built 2026-11-15**, browser smoke only; real pen + undo + JPEG export open) | Pen mode, pen tool (pressure), live canvas + SVG commit, colours/sizes, stroke eraser incl. eraser end, select/move/delete strokes, IndexedDB migration | Draw a page of notes over photos smoothly; reload keeps it |
 | 3. Save + export | `.bo` formatVersion 2 (ink + connections), board JPEG export includes ink, perf check with 2k strokes | Round-trip a `.bo` with ink; old app refuses it cleanly |
 | 4. Brainstorm tools | Marker, highlighter, lasso, Shift straight line, barrel-button pan, brush cursor, pressure curve setting, Windows Ink hint | Feels like a sketch app, not a demo |
 | 5. Extras | Light brush, arrows, attach-to-image + annotated export, shape recognition, tilt, partial eraser, sketch frames in bento, Mac native pressure plugin if needed | Picked one by one after using phase 4 |

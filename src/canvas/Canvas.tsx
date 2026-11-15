@@ -1,9 +1,10 @@
 import { memo, useEffect, useRef, useState, type CSSProperties, type RefObject } from 'react'
-import type { Connection, Placement, ShapeKind, ViewState } from '../shared/types'
+import { DEFAULT_TEXT_FORMAT, TEXT_FONTS, type Connection, type Placement, type ShapeKind, type ViewState } from '../shared/types'
 import { GRID, clampZoom, screenToWorld, snapDelta, zoomAt } from './viewport'
 import { connectorPath } from './connector'
 import { LinkIcon } from '../ui/icons'
 import { openExternal } from '../shared/external'
+import { hitsStroke, outlinePath, pressureWidth, simplify } from './ink/stroke'
 import { BENTO_COLUMNS, BENTO_CELL, BENTO_GAP } from './bento'
 
 const BENTO_PAD = 40
@@ -33,6 +34,12 @@ interface Props {
   /** Shape being drawn: drag on the canvas to place it. */
   tool: ShapeKind | null
   onDraw: (r: { x: number; y: number; w: number; h: number }) => void
+  /** Pen mode: the pen tip draws ink (mouse and touch keep editing). The pen's eraser end erases ink in any mode. */
+  penMode: boolean
+  pen: { color: string; size: number }
+  /** A finished stroke: absolute world points [x, y, pressure, ...], line width in world units. */
+  onInk: (stroke: { points: number[]; color: string; size: number }) => void
+  onEraseInk: (ids: string[]) => void
   dimmed: (p: Placement) => boolean
   onStartEdit: (id: string) => void
   onEditNote: (id: string, text: string) => void
@@ -50,6 +57,8 @@ type Drag =
   | { kind: 'pan'; sx: number; sy: number; view: ViewState; moved: boolean }
   | { kind: 'marquee'; sx: number; sy: number; base: string[]; moved: boolean; shift: boolean }
   | { kind: 'move'; sx: number; sy: number; origs: Map<string, Placement>; moved: boolean; clickedId: string; shift: boolean }
+  | { kind: 'ink'; pts: number[]; last: { x: number; y: number; w: number } | null }
+  | { kind: 'erase'; hit: Set<string> }
   | { kind: 'resize'; sx: number; sy: number; orig: Placement }
   | { kind: 'draw'; sx: number; sy: number; moved: boolean; shift: boolean; rect: { x: number; y: number; w: number; h: number } | null }
 
@@ -61,6 +70,8 @@ export function Canvas(props: Props) {
   live.current = { ...props, view }
   const drag = useRef<Drag | null>(null)
   const space = useRef(false)
+  const inkCanvas = useRef<HTMLCanvasElement>(null)
+  const penAt = useRef(0) // last pen activity, to swallow the context menu a pen barrel/long-press raises
   const [box, setBox] = useState<{ x: number; y: number; w: number; h: number } | null>(null)
 
   useEffect(() => {
@@ -124,8 +135,22 @@ export function Canvas(props: Props) {
     }
     const itemEl = target.closest<HTMLElement>('[data-pid]')
     const panning = e.button === 1 || space.current
-    e.currentTarget.setPointerCapture(e.pointerId)
+    try { e.currentTarget.setPointerCapture(e.pointerId) } catch { /* synthetic pointer (smoke test): no capture */ }
 
+    if (e.pointerType === 'pen') penAt.current = Date.now()
+    if (e.pointerType === 'pen' && !panning && !p.locked) {
+      if (e.buttons & 32 || e.button === 5) {
+        drag.current = { kind: 'erase', hit: new Set() }
+        eraseAt(e)
+        return
+      }
+      if (p.penMode) {
+        e.preventDefault()
+        drag.current = { kind: 'ink', pts: [], last: null }
+        inkTo(e, drag.current)
+        return
+      }
+    }
     if (panning) {
       e.preventDefault()
       e.currentTarget.style.cursor = 'grabbing'
@@ -165,10 +190,59 @@ export function Canvas(props: Props) {
     }
   }
 
+  const worldOf = (e: { clientX: number; clientY: number }) => {
+    const r = viewportRef.current!.getBoundingClientRect()
+    return screenToWorld(live.current.view, e.clientX - r.left, e.clientY - r.top)
+  }
+
+  const eraseAt = (e: React.PointerEvent) => {
+    const d = drag.current
+    if (d?.kind !== 'erase') return
+    const w = worldOf(e)
+    const ids = live.current.placements
+      .filter((i) => i.kind === 'ink' && i.ink && !d.hit.has(i.id) && hitsStroke(i.ink.points, i.ink.size, w.x - i.x, w.y - i.y, 4 / live.current.view.zoom))
+      .map((i) => i.id)
+    ids.forEach((id) => d.hit.add(id))
+    if (ids.length) live.current.onEraseInk(ids)
+  }
+
+  // Live stroke: refs and a screen-space canvas only, no React state per sample (docs/PEN_INPUT.md).
+  const inkTo = (e: React.PointerEvent, d: Extract<Drag, { kind: 'ink' }>) => {
+    const p = live.current
+    const cv = inkCanvas.current
+    const ctx = cv?.getContext('2d')
+    const events = e.nativeEvent.getCoalescedEvents?.() ?? []
+    for (const ev of events.length ? events : [e.nativeEvent]) {
+      const w = worldOf(ev)
+      const pr = ev.pressure > 0 ? ev.pressure : 0.5 // pressure 0 = no pressure reported
+      d.pts.push(w.x, w.y, pr)
+      if (!ctx) continue
+      const r = viewportRef.current!.getBoundingClientRect()
+      const px = ev.clientX - r.left
+      const py = ev.clientY - r.top
+      const width = pressureWidth(p.pen.size, pr) // already screen px
+      ctx.lineCap = ctx.lineJoin = 'round'
+      ctx.strokeStyle = ctx.fillStyle = p.pen.color === 'auto' ? getComputedStyle(viewportRef.current!).getPropertyValue('--text').trim() || '#222' : p.pen.color
+      ctx.lineWidth = width
+      ctx.beginPath()
+      if (d.last) {
+        ctx.moveTo(d.last.x, d.last.y)
+        ctx.lineTo(px, py)
+        ctx.stroke()
+      } else {
+        ctx.arc(px, py, width / 2, 0, Math.PI * 2)
+        ctx.fill()
+      }
+      d.last = { x: px, y: py, w: width }
+    }
+  }
+
   const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     const d = drag.current
     if (!d) return
     const p = live.current
+    if (d.kind === 'ink') return inkTo(e, d)
+    if (d.kind === 'erase') return eraseAt(e)
     const dx = e.clientX - d.sx
     const dy = e.clientY - d.sy
     if (d.kind === 'pan') {
@@ -217,7 +291,7 @@ export function Canvas(props: Props) {
     } else {
       const w = Math.max(24, d.orig.w + dx / p.view.zoom)
       // Images and notes keep their aspect; shapes resize freely.
-      const h = d.orig.kind === 'shape' ? Math.max(24, d.orig.h + dy / p.view.zoom) : (w * d.orig.h) / d.orig.w
+      const h = d.orig.kind === 'shape' || d.orig.kind === 'text' ? Math.max(24, d.orig.h + dy / p.view.zoom) : (w * d.orig.h) / d.orig.w
       p.onTransient({ [d.orig.id]: { w, h } })
     }
   }
@@ -227,7 +301,16 @@ export function Canvas(props: Props) {
     drag.current = null
     if (!d) return
     const p = live.current
-    if (d.kind === 'pan') {
+    if (d.kind === 'ink') {
+      const cv = inkCanvas.current
+      cv?.getContext('2d')?.clearRect(0, 0, cv.width, cv.height)
+      if (e.type === 'pointerup' && d.pts.length) {
+        const z = p.view.zoom
+        p.onInk({ points: simplify(d.pts, 0.5 / z), color: p.pen.color, size: p.pen.size / z })
+      }
+    } else if (d.kind === 'erase') {
+      // nothing to finish: strokes were removed as the pen passed over them
+    } else if (d.kind === 'pan') {
       e.currentTarget.style.cursor = ''
     } else if (d.kind === 'draw') {
       setBox(null)
@@ -248,7 +331,7 @@ export function Canvas(props: Props) {
   return (
     <div
       ref={viewportRef}
-      className={'viewport' + (props.tool ? ' drawing' : '')}
+      className={'viewport' + (props.tool ? ' drawing' : '') + (props.penMode ? ' penning' : '')}
       style={{ backgroundPosition: `${view.x}px ${view.y}px`, backgroundSize: `${dots}px ${dots}px`, '--dot': dots < 9 ? 0 : 1 } as CSSProperties}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
@@ -263,10 +346,11 @@ export function Canvas(props: Props) {
         // The canvas captures the pointer on press, so e.target is the viewport itself: find the card under the cursor instead.
         const el = document.elementFromPoint(e.clientX, e.clientY)?.closest<HTMLElement>('[data-pid]')
         const p = placements.find((x) => x.id === el?.dataset.pid)
-        if (p?.kind === 'note') props.onStartEdit(p.id)
+        if (p?.kind === 'note' || p?.kind === 'text') props.onStartEdit(p.id)
       }}
       onContextMenu={(e) => {
         e.preventDefault()
+        if (Date.now() - penAt.current < 1000) return
         props.onContextMenu(e.clientX, e.clientY, (e.target as HTMLElement).closest<HTMLElement>('[data-pid]')?.dataset.pid ?? null)
       }}
     >
@@ -294,6 +378,7 @@ export function Canvas(props: Props) {
           />
         ))}
       </div>
+      {props.penMode && <canvas ref={inkCanvas} className="ink-live" width={size.w} height={size.h} />}
       {box && <div className="marquee" style={{ left: box.x, top: box.y, width: box.w, height: box.h }} />}
       {!placements.length && (
         <div className="empty">
@@ -325,20 +410,27 @@ interface ItemProps {
 const Item = memo(function Item({ p, url, href, selected, dimmed, locked, editing, onEditNote }: ItemProps) {
   const note = p.kind === 'note'
   const shape = p.kind === 'shape'
+  const ink = p.kind === 'ink' && p.ink
+  const text = p.kind === 'text'
+  const fmt = p.fmt ?? DEFAULT_TEXT_FORMAT
   return (
     <div
-      className={'item' + (note ? ' note' : '') + (shape ? ' shape' : '') + (selected ? ' selected' : '') + (dimmed ? ' dimmed' : '') + (locked ? ' locked' : '')}
+      className={'item' + (note ? ' note' : '') + (shape ? ' shape' : '') + (ink ? ' ink' : '') + (text ? ' text' : '') + (selected ? ' selected' : '') + (dimmed ? ' dimmed' : '') + (locked ? ' locked' : '')}
       data-pid={p.id}
-      style={{ left: p.x, top: p.y, width: p.w, height: p.h, zIndex: p.z, ...(note ? { background: p.tint } : {}), ...(shape ? { '--tint': p.tint } : {}) } as CSSProperties}
+      style={{ left: p.x, top: p.y, width: p.w, height: p.h, zIndex: p.z, ...(note ? { background: p.tint } : {}), ...(shape ? { '--tint': p.tint } : {}), ...(text ? { fontFamily: TEXT_FONTS[fmt.font]?.css, fontSize: fmt.size, fontWeight: fmt.bold ? 700 : 400, fontStyle: fmt.italic ? 'italic' : 'normal', textAlign: fmt.align, color: fmt.color === 'auto' ? 'var(--text)' : fmt.color } : {}) } as CSSProperties}
     >
-      {shape ? (
+      {ink ? (
+        <svg width={p.w} height={p.h} aria-hidden>
+          <path d={outlinePath(ink.points, ink.size)} style={{ fill: ink.color === 'auto' ? 'var(--text)' : ink.color }} />
+        </svg>
+      ) : shape ? (
         <svg viewBox="0 0 100 100" preserveAspectRatio="none" width="100%" height="100%" aria-hidden>{SHAPES[p.shape ?? 'rect']}</svg>
-      ) : note ? (
+      ) : note || text ? (
         editing ? (
           <textarea
             autoFocus
             defaultValue={p.text}
-            placeholder="Write a note"
+            placeholder={text ? 'Type text' : 'Write a note'}
             onFocus={(e) => e.target.setSelectionRange(e.target.value.length, e.target.value.length)}
             onBlur={(e) => onEditNote(p.id, e.target.value)}
             onKeyDown={(e) => {
@@ -347,7 +439,7 @@ const Item = memo(function Item({ p, url, href, selected, dimmed, locked, editin
             }}
           />
         ) : (
-          <div className="note-text">{p.text || <span className="muted">Double-click to write</span>}</div>
+          <div className="note-text">{p.text || <span className="muted">{text ? 'Empty text' : 'Double-click to write'}</span>}</div>
         )
       ) : (
         url && <img src={url} alt="" draggable={false} />
@@ -357,7 +449,7 @@ const Item = memo(function Item({ p, url, href, selected, dimmed, locked, editin
           <LinkIcon />
         </span>
       )}
-      {selected && !locked && <span className="handle" data-handle />}
+      {selected && !locked && !ink && <span className="handle" data-handle />}
     </div>
   )
 })

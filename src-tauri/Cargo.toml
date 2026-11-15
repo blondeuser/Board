@@ -1,6 +1,6 @@
 [package]
 name = "remind"
-version = "0.3.0"
+version = "0.4.0"
 description = "REMind: a local-first moodboard and photo library"
 authors = ["REM Studio"]
 license = ""
@@ -29,6 +29,7 @@ fast_image_resize = "5"
 ort = "=2.0.0-rc.15"
 tokenizers = { version = "0.22", default-features = false, features = ["fancy-regex"] }
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "gif", "bmp"] }
+zip = { version = "2", default-features = false, features = ["deflate"] }
 
 # Smaller, faster installer binary.
 [profile.release]

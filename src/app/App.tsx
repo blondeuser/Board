@@ -13,7 +13,7 @@ import { Sidebar } from '../ui/Sidebar'
 import { Inspector } from '../ui/Inspector'
 import type { ShapeKind } from '../shared/types'
 import { Library } from '../library/Library'
-import { BentoIcon, DiamondIcon, EllipseIcon, FitIcon, LinkIcon, RectIcon, TriangleIcon, MinusIcon, NoteIcon, PlusIcon } from '../ui/icons'
+import { BentoIcon, DiamondIcon, EllipseIcon, FitIcon, LinkIcon, RectIcon, TriangleIcon, MinusIcon, NoteIcon, PenIcon, TextIcon, PlusIcon } from '../ui/icons'
 
 function confirmDelete(app: BoardApp, assetIds: string[]) {
   const boards = new Set(app.allPlacements.filter((p) => assetIds.includes(p.assetId)).map((p) => p.boardId)).size
@@ -21,6 +21,8 @@ function confirmDelete(app: BoardApp, assetIds: string[]) {
   if (confirm(`Delete ${what} from the library${boards ? ` and ${boards} board${boards > 1 ? 's' : ''}` : ''}? This cannot be undone.`)) app.deleteAssets(assetIds)
 }
 
+const PEN_COLORS = ['auto', '#e5484d', '#f08a24', '#46a758', '#3e63dd', '#e93d82']
+const PEN_SIZES = [2, 4, 8]
 const SHAPE_TOOLS: [ShapeKind, string, () => React.JSX.Element][] = [
   ['rect', 'rectangle', RectIcon],
   ['ellipse', 'circle / ellipse', EllipseIcon],
@@ -41,6 +43,14 @@ export function App() {
     try { return localStorage.getItem('board.sidebar') !== 'hidden' } catch { return true }
   })
   const [tool, setTool] = useState<ShapeKind | null>(null)
+  // Pen mode: the pen tip draws ink; the mouse keeps editing. Prefs are per viewer, so localStorage is enough.
+  const [penMode, setPenMode] = useState(false)
+  const [pen, setPen] = useState(() => {
+    try { return { color: 'auto', size: 4, ...JSON.parse(localStorage.getItem('board.pen') ?? '{}') } } catch { return { color: 'auto', size: 4 } }
+  })
+  useEffect(() => {
+    try { localStorage.setItem('board.pen', JSON.stringify(pen)) } catch { /* private window: prefs just aren't kept */ }
+  }, [pen])
   useEffect(() => {
     if (!tool) return
     const esc = (e: KeyboardEvent) => e.key === 'Escape' && setTool(null)
@@ -118,6 +128,15 @@ export function App() {
         return
       }
       if ((e.target as HTMLElement).matches?.('input, textarea, select') || (e.target as HTMLElement).closest?.('.modal')) return
+      if (e.key.toLowerCase() === 't' && !e.ctrlKey && !e.metaKey && !e.altKey && a.screen === 'board' && !a.editingId) {
+        e.preventDefault()
+        a.addText(worldPointAt(pointer.current?.x, pointer.current?.y))
+        return
+      }
+      if (e.key.toLowerCase() === 'p' && !e.ctrlKey && !e.metaKey && !e.altKey && a.screen === 'board') {
+        setPenMode((v) => !v)
+        return
+      }
       if (a.screen === 'library') {
         const sel = a.librarySelection
         if ((e.key === 'Delete' || e.key === 'Backspace') && sel.length) confirmDelete(a, sel)
@@ -158,12 +177,12 @@ export function App() {
     return out
   }, [assets])
   const bentoItems = useMemo(
-    () => boardPlacements.filter((p) => p.kind !== 'shape').map((p) => ({ id: p.id, x: p.x, y: p.y, w: p.w, h: p.h, kind: p.kind === 'note' ? 'note' as const : 'image' as const, textLength: p.text?.length })),
+    () => boardPlacements.filter((p) => p.kind !== 'shape' && p.kind !== 'ink' && p.kind !== 'text').map((p) => ({ id: p.id, x: p.x, y: p.y, w: p.w, h: p.h, kind: p.kind === 'note' ? 'note' as const : 'image' as const, textLength: p.text?.length })),
     [boardPlacements],
   )
   const bentoRects = useMemo(() => (bento ? bentoLayout(bentoItems) : null), [bento, bentoItems])
   const shown = useMemo(
-    () => (bentoRects ? boardPlacements.filter((p) => p.kind !== 'shape').map((p) => ({ ...p, ...bentoRects[p.id] })) : boardPlacements),
+    () => (bentoRects ? boardPlacements.filter((p) => p.kind !== 'shape' && p.kind !== 'ink' && p.kind !== 'text').map((p) => ({ ...p, ...bentoRects[p.id] })) : boardPlacements),
     [bentoRects, boardPlacements],
   )
   void assets
@@ -266,6 +285,10 @@ export function App() {
           connections={app.connections}
           locked={bento}
           tool={tool}
+          penMode={penMode}
+          pen={pen}
+          onInk={app.addInk}
+          onEraseInk={app.eraseInk}
           onContextMenu={openMenu}
           onDraw={(r) => { if (tool) app.addShape(tool, r); setTool(null) }}
           editingId={app.editingId}
@@ -274,7 +297,7 @@ export function App() {
           urls={app.urls}
           links={links}
           selection={app.selection}
-          dimmed={(p) => filtering && (p.kind === 'note' || p.kind === 'shape' || !app.matches(p.assetId))}
+          dimmed={(p) => filtering && (p.kind === 'note' || p.kind === 'shape' || p.kind === 'ink' || p.kind === 'text' || !app.matches(p.assetId))}
           onView={app.setView}
           onSelect={app.setSelection}
           onBringToFront={app.bringToFront}
@@ -286,7 +309,19 @@ export function App() {
           <button className={'icon' + (bento ? ' on' : '')} title={bento ? 'Back to free layout' : 'Cards mode (bento grid)'} aria-pressed={bento} onClick={toggleBento}><BentoIcon /></button>
         </div>
         {!bento && <div className="drawbar" onPointerDown={(e) => e.stopPropagation()}>
+          <button className="icon" title="Add text (T)" onClick={() => app.addText(worldPointAt())}><TextIcon /></button>
           <button className="icon" title="New note" onClick={() => app.addNote(worldPointAt())}><NoteIcon /></button>
+          <button className={'icon' + (penMode ? ' on' : '')} title="Pen: draw with a stylus (P). The pen's eraser end erases strokes." aria-pressed={penMode} onClick={() => setPenMode(!penMode)}><PenIcon /></button>
+          {penMode && (
+            <>
+              {PEN_COLORS.map((c) => (
+                <button key={c} className={'pen-swatch' + (pen.color === c ? ' on' : '')} title={c === 'auto' ? 'Theme ink' : c} aria-label={'Ink ' + c} style={{ background: c === 'auto' ? 'var(--text)' : c }} onClick={() => setPen({ ...pen, color: c })} />
+              ))}
+              {PEN_SIZES.map((n) => (
+                <button key={n} className={'pen-size' + (pen.size === n ? ' on' : '')} title={'Line ' + n} aria-label={'Line size ' + n} onClick={() => setPen({ ...pen, size: n })}><i style={{ width: n + 2, height: n + 2 }} /></button>
+              ))}
+            </>
+          )}
           <hr />
           <button className={'icon' + (linked ? ' on' : '')} title={bento ? 'Links are only in free layout' : linked ? 'Remove the line between the 2 selected cards' : 'Draw a curved line between the 2 selected cards'} disabled={bento || selectedPlacements.length !== 2} onClick={() => app.toggleConnection(selectedPlacements[0].id, selectedPlacements[1].id)}><LinkIcon /></button>
           <hr />
@@ -299,6 +334,7 @@ export function App() {
           assetIds={[...new Set(selectedPlacements.filter((p) => p.assetId).map((p) => p.assetId))]}
           notes={selectedPlacements.filter((p) => p.kind === 'note')}
           shapes={selectedPlacements.filter((p) => p.kind === 'shape')}
+          texts={selectedPlacements.filter((p) => p.kind === 'text')}
           count={selectedPlacements.length}
           removeTitle="Remove from board (Del). The image stays in the library."
           onRemove={() => app.removeFromBoard(selectedPlacements.map((p) => p.id))}

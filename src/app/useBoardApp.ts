@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { NOTE_GREYS, NOTE_H, NOTE_TINTS, NOTE_W, noteHeight, type Asset, type AssetSource, type Board, type Category, type Connection, type Placement, type ShapeKind, type ViewState } from '../shared/types'
+import { DEFAULT_TEXT_FORMAT, type TextFormat, NOTE_GREYS, NOTE_H, NOTE_TINTS, NOTE_W, noteHeight, type Asset, type AssetSource, type Board, type Category, type Connection, type Placement, type ShapeKind, type ViewState } from '../shared/types'
 import { newId } from '../shared/id'
 import { db } from '../backend'
 import { makeThumbnail } from '../items/importImage'
 import { gridLayout } from '../canvas/viewport'
+import { strokeBounds, toLocal } from '../canvas/ink/stroke'
 import { alignPatches, reorderZ, type AlignMode, type OrderMode } from '../canvas/arrange'
 import { analyseAsset, embedText, setModelProgressListener } from '../categorize/style/classifier'
 import { queryToPrompt, semanticMatches } from '../categorize/style/search'
@@ -304,6 +305,27 @@ export function useBoardApp() {
     setEditingId(note.id)
   }, [])
 
+  /** Plain text: a borderless box at `center`, opened for typing. The last used format is kept for the next one. */
+  const addText = useCallback((center: { x: number; y: number }) => {
+    const { placements: ps, activeId: boardId } = latest.current
+    const z = Math.max(0, ...ps.filter((p) => p.boardId === boardId).map((p) => p.z)) + 1
+    const fmt = [...ps].reverse().find((p) => p.kind === 'text')?.fmt ?? DEFAULT_TEXT_FORMAT
+    const t: Placement = { id: newId(), boardId, kind: 'text', assetId: '', text: '', fmt, x: center.x - 160, y: center.y - fmt.size, w: 320, h: Math.round(fmt.size * 1.5), z }
+    setPlacements((p) => [...p, t])
+    void db.savePlacements([t])
+    setSelection([t.id])
+    setEditingId(t.id)
+  }, [])
+
+  const setTextFormat = useCallback((ids: string[], patch: Partial<TextFormat>) => {
+    const patches: Record<string, Partial<Placement>> = {}
+    latest.current.placements.forEach((p) => {
+      if (ids.includes(p.id) && p.kind === 'text') patches[p.id] = { fmt: { ...(p.fmt ?? DEFAULT_TEXT_FORMAT), ...patch } }
+    })
+    patchPlacements(patches)
+    setTimeout(() => commitPlacements(ids), 0)
+  }, [patchPlacements, commitPlacements])
+
   /** Add a shape covering `r` (world units) on the open board, on top, and select it. */
   const addShape = useCallback((shape: ShapeKind, r: { x: number; y: number; w: number; h: number }) => {
     const { placements: ps, activeId: boardId } = latest.current
@@ -314,9 +336,35 @@ export function useBoardApp() {
     setSelection([s.id])
   }, [])
 
+  const addInk = useCallback((st: { points: number[]; color: string; size: number }) => {
+    const { placements: ps, activeId: boardId } = latest.current
+    const z = Math.max(0, ...ps.filter((p) => p.boardId === boardId).map((p) => p.z)) + 1
+    const b = strokeBounds(st.points, st.size)
+    const ink: Placement = {
+      id: newId(), boardId, kind: 'ink', assetId: '', x: b.x, y: b.y, w: b.w, h: b.h, z,
+      ink: { tool: 'pen', color: st.color, size: st.size, points: toLocal(st.points, b.x, b.y) },
+    }
+    setPlacements((p) => [...p, ink])
+    void db.savePlacements([ink])
+  }, [])
+
+  /** Pen eraser: removes strokes only (no selection or connection changes). */
+  const eraseInk = useCallback((ids: string[]) => {
+    setPlacements((ps) => ps.filter((p) => !ids.includes(p.id)))
+    setSelection((s) => s.filter((id) => !ids.includes(id)))
+    void db.deletePlacements(ids)
+  }, [])
+
   const editNote = useCallback((id: string, text: string) => {
     setEditingId('')
     const cur = latest.current.placements.find((p) => p.id === id)
+    if (cur?.kind === 'text' && !text.trim()) {
+      // an empty text box is not worth keeping
+      setPlacements((ps) => ps.filter((p) => p.id !== id))
+      setSelection((s) => s.filter((x) => x !== id))
+      void db.deletePlacements([id])
+      return
+    }
     if (!cur || cur.text === text) return
     patchPlacements({ [id]: { text } })
     setTimeout(() => commitPlacements([id]), 0)
@@ -485,18 +533,27 @@ export function useBoardApp() {
 
   const saveBoardFile = useCallback(async (asNew: boolean) => {
     try {
+      if (isDesktop()) {
+        // Rust writes the .bo itself (no image bytes through the UI). File > Save reuses the path chosen earlier.
+        const b = latest.current.boards.find((x) => x.id === latest.current.activeId)
+        if (!b) return
+        let path = asNew ? undefined : filePaths.current.get(b.id)
+        if (!path) {
+          const { save } = await import('@tauri-apps/plugin-dialog')
+          const name = `${b.name.replace(/[\\/:*?"<>|]+/g, '-').trim() || 'board'}.bo`
+          path = (await save({ defaultPath: name, filters: [{ name: 'Board file', extensions: ['bo'] }] })) ?? undefined
+          if (!path) return // dialog cancelled
+        }
+        const { exportBo } = await import('../backend/api')
+        const { images } = await exportBo(b.id, path)
+        filePaths.current.set(b.id, path)
+        notify(`Saved ${path.split(/[\\/]/).pop()} (${images} image${images === 1 ? '' : 's'})`)
+        return
+      }
       const packed = await packBoard()
       if (!packed) return
       const { board: b, bytes, count } = packed
       const name = `${b.name.replace(/[\\/:*?"<>|]+/g, '-').trim() || 'board'}.bo`
-      if (isDesktop()) {
-        // Native Save dialog; File > Save writes to the path chosen earlier, Save As asks again.
-        const saved = await saveFile(bytes, name, asNew ? undefined : filePaths.current.get(b.id))
-        if (!saved) return // dialog cancelled
-        if (saved.path) filePaths.current.set(b.id, saved.path)
-        notify(`Saved ${saved.name} (${count} image${count === 1 ? '' : 's'})`)
-        return
-      }
       const picker = (window as unknown as { showSaveFilePicker?: (o: object) => Promise<FileSystemFileHandle> }).showSaveFilePicker
       let handle = asNew ? undefined : fileHandles.current.get(b.id)
       if (!handle && picker) {
@@ -603,6 +660,33 @@ export function useBoardApp() {
       notify(e instanceof BoError ? e.message : 'Could not open that file.')
     }
   }, [notify, updateAssets, selectBoard])
+
+  /** Desktop: pick a .bo and let Rust open it as a new board, then reload the library state. */
+  const openBo = useCallback(async (known?: string) => {
+    try {
+      const path = known ?? (await (await import('@tauri-apps/plugin-dialog')).open({ multiple: false, filters: [{ name: 'Board file', extensions: ['bo'] }] }))
+      if (typeof path !== 'string') return
+      const { importBoFile, loadAll } = await import('../backend/api')
+      const done = await importBoFile(path)
+      const lib = await loadAll()
+      const map = Object.fromEntries(lib.assets.map((a) => [a.id, { ...a, embedding: undefined } as Asset]))
+      latest.current.assets = map
+      setAssets(map)
+      setCategories(lib.categories)
+      setPlacements(lib.placements)
+      setBoards([...lib.boards].sort((x, y) => x.createdAt - y.createdAt))
+      selectBoard(done.boardId)
+      notify(`Opened "${done.name}" (${done.newImages} new image${done.newImages === 1 ? '' : 's'})`)
+    } catch (e) {
+      notify(typeof e === 'string' && e ? e : 'Could not open that file.')
+    }
+  }, [notify, selectBoard])
+
+  // Started by double-clicking a .bo in Explorer: open it once the library is loaded.
+  useEffect(() => {
+    if (!ready || !isDesktop()) return
+    void import('@tauri-apps/api/core').then(({ invoke }) => invoke<string | null>('take_launch_file')).then((p) => { if (p) void openBo(p) })
+  }, [ready, openBo])
 
   // ---- auto type detection (on-device CLIP, runs in a worker) ----
   const autoTag = useCallback(
@@ -758,11 +842,11 @@ export function useBoardApp() {
     arrange, align, copyCards, cutCards, pasteCards, hasClipboard,
     query, setQuery, semantic, searchPending,
     screen, setScreen, librarySelection, setLibrarySelection, deleteAssets, addToBoard,
-    tagging, modelProgress, editingId, setEditingId, addNote, addShape, editNote, setTint, setMode,
+    tagging, modelProgress, editingId, setEditingId, addNote, addText, setTextFormat, addShape, addInk, eraseInk, editNote, setTint, setMode,
     ready, boards, board, activeId, assets, urls, categories, selection, filter, message,
     boardPlacements,
     setSelection, selectBoard, addBoard, createBoard, renameBoard, removeBoard, setView,
-    saveBoard, saveBoardAs, importBo, exportJpeg, clearAll,
+    saveBoard, saveBoardAs, importBo, openBo, exportJpeg, clearAll,
     importBlobs, patchPlacements, commitPlacements, bringToFront, removeFromBoard,
     toggleTag, addCategory, removeCategory, toggleFilter, clearFilter, matches, notify,
   }

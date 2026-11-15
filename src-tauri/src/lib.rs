@@ -1,6 +1,7 @@
 // REMind desktop shell. The UI is the web build in ../dist; storage lives here (docs/RUST_BACKEND.md step 1).
 // Plugins: http (LIT Awards + link previews without CORS), dialog + fs (native Save), opener (system browser).
 mod analyze;
+mod bo;
 mod color;
 mod db;
 mod files;
@@ -21,6 +22,8 @@ struct Store {
     analyzer: Mutex<Option<Analyzer>>,
     /// In-memory search index of current-model embeddings; None = rebuild from the database on next use.
     index: Mutex<Option<HashMap<String, Vec<f32>>>>,
+    /// A .bo path from the command line (double-click in Explorer); handed to the UI once.
+    launch_file: Mutex<Option<String>>,
 }
 
 type Res<T> = Result<T, String>;
@@ -158,6 +161,114 @@ fn asset_paths(s: State<Store>, id: String) -> Vec<Option<String>> {
     vec![p(s.files.find_original(&id)), p(s.files.find_thumb(&id))]
 }
 
+/// Saves a board as a .bo at `path` (written to a temp file first, then renamed). Returns { images }.
+#[tauri::command]
+async fn export_bo(s: State<'_, Store>, board_id: String, path: String, exported_at: String) -> Res<Value> {
+    let all = s.db()?.load_all()?;
+    let list = |k: &str| all[k].as_array().cloned().unwrap_or_default();
+    let board = list("boards").into_iter().find(|b| b["id"] == board_id.as_str()).ok_or("board not found")?;
+    let placements: Vec<Value> = list("placements").into_iter().filter(|p| p["boardId"] == board_id.as_str()).collect();
+    let (all_assets, all_cats) = (list("assets"), list("categories"));
+    let mut assets = vec![];
+    let mut seen = std::collections::HashSet::new();
+    for id in placements.iter().filter_map(|p| p["assetId"].as_str()).filter(|i| !i.is_empty()) {
+        if !seen.insert(id.to_string()) { continue }
+        let mut a = all_assets.iter().find(|a| a["id"] == id).cloned().ok_or("missing image")?;
+        let orig = s.files.find_original(id).ok_or("missing image")?;
+        let ext = orig.extension().and_then(|e| e.to_str()).unwrap_or("img").to_string();
+        if a["hash"].as_str().is_none_or(str::is_empty) {
+            a["hash"] = import::sha256_hex(&std::fs::read(&orig).map_err(|e| e.to_string())?).into();
+        }
+        if let Some(o) = a.as_object_mut() { o.remove("embedding"); o.remove("embeddingModel"); }
+        a["ext"] = ext.into();
+        assets.push(a);
+    }
+    let used: std::collections::HashSet<&str> = assets.iter().flat_map(|a| a["categoryIds"].as_array().into_iter().flatten().filter_map(|c| c.as_str())).collect();
+    let categories = all_cats.iter().filter(|c| c["id"].as_str().is_some_and(|i| used.contains(i))).cloned().collect();
+    let content = bo::Content { board, placements, assets, categories };
+    let count = content.assets.len();
+    let by_hash: HashMap<String, String> = content.assets.iter().filter_map(|a| Some((a["hash"].as_str()?.to_string(), a["id"].as_str()?.to_string()))).collect();
+    let tmp = PathBuf::from(format!("{path}.tmp"));
+    let out = std::fs::File::create(&tmp).map_err(|e| e.to_string())?;
+    let result = bo::write(std::io::BufWriter::new(out), &content, env!("CARGO_PKG_VERSION"), &exported_at, |hash, ext| {
+        let id = by_hash.get(hash).ok_or("missing image")?;
+        let _ = ext;
+        std::fs::read(s.files.find_original(id).ok_or("missing image")?).map_err(|e| e.to_string())
+    });
+    if let Err(e) = result {
+        std::fs::remove_file(&tmp).ok();
+        return Err(e);
+    }
+    std::fs::rename(&tmp, &path).map_err(|e| e.to_string())?;
+    Ok(serde_json::json!({ "images": count }))
+}
+
+/// Opens a .bo as a new board: images already in the library (same hash) are reused, new ones get files + thumbnails,
+/// categories match by name. Everything is decoded before anything is written. Returns { boardId, name, newImages }.
+#[tauri::command]
+async fn import_bo(s: State<'_, Store>, path: String) -> Res<Value> {
+    let content = bo::read(std::io::BufReader::new(std::fs::File::open(&path).map_err(|_| "Could not open that file.".to_string())?))?;
+    let all = s.db()?.load_all()?;
+    let lib_assets = all["assets"].as_array().cloned().unwrap_or_default();
+    let lib_cats = all["categories"].as_array().cloned().unwrap_or_default();
+    // Hash of every library image; older ones without a hash get it filled in from their file.
+    let mut hashes = HashMap::new();
+    let mut backfill = vec![];
+    for a in &lib_assets {
+        let Some(id) = a["id"].as_str() else { continue };
+        match a["hash"].as_str().filter(|h| !h.is_empty()) {
+            Some(h) => { hashes.insert(h.to_string(), id.to_string()); }
+            None => {
+                let Some(p) = s.files.find_original(id) else { continue };
+                let h = import::sha256_hex(&std::fs::read(p).map_err(|e| e.to_string())?);
+                hashes.insert(h.clone(), id.to_string());
+                let mut b = a.clone();
+                b["hash"] = h.into();
+                backfill.push(b);
+            }
+        }
+    }
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_millis() as u64);
+    let plan = bo::plan(&content, &hashes, &lib_cats, now, bo::new_id);
+    // Decode everything first so a bad image fails the import before anything is written.
+    let mut ready = vec![];
+    for (asset, ext) in &plan.add_assets {
+        let hash = asset["hash"].as_str().unwrap_or("");
+        let bytes = bo::read_image(std::io::BufReader::new(std::fs::File::open(&path).map_err(|e| e.to_string())?), hash, ext)?;
+        let a = import::analyze(&bytes).map_err(|_| "Could not read an image in this file.".to_string())?;
+        ready.push((asset.clone(), bytes, a));
+    }
+    for (asset, bytes, a) in &ready {
+        let id = asset["id"].as_str().unwrap_or("");
+        Files::write(&s.files.original(id, a.ext), bytes)?;
+        Files::write(&s.files.thumb(id, &a.thumb.0), &a.thumb.1)?;
+    }
+    let mut db = s.db()?;
+    if !plan.add_categories.is_empty() { db.save_categories(&plan.add_categories)? }
+    let mut changed: Vec<Value> = ready.iter().map(|(a, _, _)| a.clone()).collect();
+    let mut cur: HashMap<String, Value> = lib_assets.into_iter().filter_map(|a| Some((a["id"].as_str()?.to_string(), a))).collect();
+    for b in backfill { cur.insert(b["id"].as_str().unwrap_or("").to_string(), b.clone()); changed.push(b) }
+    for (id, cats) in &plan.merge_categories {
+        let Some(a) = cur.get(id).cloned() else { continue };
+        let mut ids: Vec<Value> = a["categoryIds"].as_array().cloned().unwrap_or_default();
+        for c in cats { if !ids.iter().any(|x| x == c.as_str()) { ids.push(c.clone().into()) } }
+        let mut a = a;
+        a["categoryIds"] = ids.into();
+        changed.retain(|x| x["id"] != a["id"]);
+        changed.push(a);
+    }
+    if !changed.is_empty() { db.save_assets(&changed)?; }
+    db.save_boards(&[plan.board.clone()])?;
+    db.save_placements(&plan.placements)?;
+    drop(db);
+    s.invalidate_index();
+    Ok(serde_json::json!({ "boardId": plan.board["id"], "name": plan.board["name"], "newImages": ready.len() }))
+}
+
+/// The .bo this process was started with, once (then None).
+#[tauri::command]
+fn take_launch_file(s: State<Store>) -> Option<String> { s.launch_file.lock().ok()?.take() }
+
 #[derive(serde::Serialize)]
 struct Analysis {
     scores: Vec<Scored>,
@@ -219,13 +330,13 @@ pub fn run() {
             let rel = "resources/models/siglip-base-patch16-224";
             let model_dir = app.path().resolve(rel, tauri::path::BaseDirectory::Resource)?;
             let model_dir = if model_dir.join("tokenizer.json").exists() { model_dir } else { PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(rel) };
-            app.manage(Store { db: Mutex::new(db), files: Files(root.join("library")), model_dir, analyzer: Mutex::new(None), index: Mutex::new(None) });
+            app.manage(Store { db: Mutex::new(db), files: Files(root.join("library")), model_dir, analyzer: Mutex::new(None), index: Mutex::new(None), launch_file: Mutex::new(std::env::args().skip(1).find(|a| a.to_lowercase().ends_with(".bo"))) });
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             load_all, save_boards, save_assets, save_placements, save_connections, save_categories, delete_board,
             delete_assets, delete_placements, delete_connections, delete_category, clear_all, add_asset, save_thumb, import_image,
-            asset_paths, meta_get, meta_set, analyze_asset, search_meaning
+            asset_paths, meta_get, meta_set, analyze_asset, search_meaning, export_bo, import_bo, take_launch_file
         ])
         .run(tauri::generate_context!())
         .expect("error while running REMind");

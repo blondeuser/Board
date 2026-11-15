@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { zipSync, strToU8 } from 'fflate'
+import { zipSync, strToU8, unzipSync } from 'fflate'
 import { buildBo, type BoAsset, type BoContent } from '../src/storage/bo/write'
 import { BoError, parseBo, planImport } from '../src/storage/bo/read'
 import { sha256Hex } from '../src/storage/bo/hash'
@@ -30,6 +30,17 @@ describe('.bo round trip', () => {
     expect(back.assets.map((a) => a.hash)).toEqual(['h1', 'h2'])
     expect([...back.images.get('h1')!]).toEqual([1, 2, 3])
     expect(back.categories[0].name).toBe('Warm')
+  })
+
+  it('ink boards are formatVersion 2 and survive import; others stay 1', () => {
+    const version = (u: Uint8Array) => JSON.parse(new TextDecoder().decode(unzipSync(u)['manifest.json'])).formatVersion
+    expect(version(buildBo(content(), '0.4.0'))).toBe(1)
+    const c = content()
+    c.placements.push({ id: 'p4', boardId: 'b1', kind: 'ink', assetId: '', x: 0, y: 0, w: 10, h: 10, z: 4, ink: { tool: 'pen', color: 'auto', size: 4, points: [0, 0, 1, 5, 5, 1] } })
+    const bytes = buildBo(c, '0.4.0')
+    expect(version(bytes)).toBe(2)
+    const plan = planImport(parseBo(bytes), { hashes: new Map(), categories: [] }, ids)
+    expect(plan.placements.some((p) => p.kind === 'ink' && p.ink?.points.length === 6)).toBe(true)
   })
 
   it('refuses a newer format, a foreign file and garbage', () => {

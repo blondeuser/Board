@@ -2,8 +2,9 @@ import { strToU8, zipSync, type Zippable } from 'fflate'
 import type { Asset, Board, Category, Placement } from '../../shared/types'
 
 export const BO_FORMAT = 'remstudio-board'
-export const BO_VERSION = 1
-export const APP_VERSION = '0.1.0' // keep in step with package.json
+/** Highest formatVersion this app can read. Files without ink or text are still written as 1 so older apps open them. */
+export const BO_VERSION = 2
+export const APP_VERSION = '0.4.0' // keep in step with package.json
 
 /** An asset as stored in `assets.json`: no embedding (rebuilt on import), plus the hash and extension of its original file. */
 export type BoAsset = Omit<Asset, 'embedding' | 'embeddingModel'> & { hash: string; ext: string }
@@ -33,7 +34,7 @@ export interface BoManifest {
 export function buildBo(c: BoContent, appVersion: string, now = new Date()): Uint8Array {
   const manifest: BoManifest = {
     format: BO_FORMAT,
-    formatVersion: BO_VERSION,
+    formatVersion: c.placements.some((p) => p.kind === 'ink' || p.kind === 'text') ? 2 : 1,
     appVersion,
     exportedAt: now.toISOString(),
     boardId: c.board.id,

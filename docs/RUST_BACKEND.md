@@ -100,6 +100,8 @@ Test with a copy of a real library (export the WebView2 folder first) before any
 
 ## Steps
 
+_Status 2026-11-15: steps 0-4 built (3: CPU only; 4: `bo.rs`, commands `export_bo` / `import_bo`). Step 5 clean-up open._
+
 Each step ends with `cargo test`, `npm test`, `npm run typecheck`, `npm run tauri dev` by hand, and a version bump if an
 installer is handed out (`0.2.0` for step 1: storage change).
 

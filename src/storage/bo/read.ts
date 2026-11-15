@@ -100,7 +100,7 @@ export function planImport(
 
   const board: Board = { ...c.board, id: newId(), createdAt: Date.now() }
   const placements: Placement[] = c.placements.flatMap((p) => {
-    if (p.kind === 'note' || p.kind === 'shape') return [{ ...p, id: newId(), boardId: board.id }]
+    if (p.kind === 'note' || p.kind === 'shape' || p.kind === 'ink' || p.kind === 'text') return [{ ...p, id: newId(), boardId: board.id }]
     const assetId = assetMap.get(p.assetId)
     return assetId ? [{ ...p, id: newId(), boardId: board.id, assetId }] : []
   })

@@ -79,5 +79,11 @@ export interface Scored {
 export const analyzeAsset = (id: string, types: string[], spaces: [string, string][]) =>
   invoke<{ scores: Scored[]; detail: Scored[] }>('analyze_asset', { id, types, spaces })
 
+/** Rust writes the board as a .bo straight to `path` (docs/BO_FORMAT.md). */
+export const exportBo = (boardId: string, path: string) => invoke<{ images: number }>('export_bo', { boardId, path, exportedAt: new Date().toISOString() })
+
+/** Rust opens a .bo as a new board (reusing images by hash); the UI then reloads the library. Errors are user-facing messages. */
+export const importBoFile = (path: string) => invoke<{ boardId: string; name: string; newImages: number }>('import_bo', { path })
+
 /** Search by meaning in Rust: [asset id, score], best first. */
 export const searchMeaning = (prompt: string) => invoke<[string, number][]>('search_meaning', { prompt })

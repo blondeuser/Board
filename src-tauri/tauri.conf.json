@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "REMind",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "identifier": "com.remstudio.remind",
   "build": {
     "frontendDist": "../dist",
@@ -25,7 +25,8 @@
       }
     ],
     "security": {
-      "csp": null,
+      "csp": "default-src 'self'; img-src 'self' asset: http://asset.localhost blob: data:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'none'; frame-src 'none'; form-action 'none'; script-src 'self'; connect-src 'self' ipc: http://ipc.localhost asset: http://asset.localhost",
+      "devCsp": "default-src 'self'; img-src 'self' asset: http://asset.localhost blob: data:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'none'; frame-src 'none'; form-action 'none'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; connect-src 'self' ipc: http://ipc.localhost asset: http://asset.localhost http://localhost:5173 ws://localhost:5173",
       "assetProtocol": {
         "enable": true,
         "scope": [
@@ -55,11 +56,13 @@
     "windows": {
       "nsis": {
         "installMode": "currentUser",
-        "displayLanguageSelector": false
+        "displayLanguageSelector": false,
+        "installerHooks": "windows/hooks.nsh"
       }
     },
     "resources": [
-      "resources/models/**/*"
+      "resources/models/**/*",
+      "icons/bo-file.ico"
     ]
   }
 }
