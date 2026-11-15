@@ -33,6 +33,7 @@ What the project does and the domain rules behind it. **Rules for working on the
 | Reference photos can be imported from public sites I use (first: LIT Awards winners). Each image keeps its source and credits; nothing is uploaded anywhere | Built 2026-11-14 (LIT) |
 | Freeform mode supports **pen drawing (Wacom)**: pressure-sensitive ink strokes on boards for brainstorming and marking up photos. Pen draws, mouse keeps editing; eraser end erases. Each stroke is a board item (`Placement` kind `ink`), not a Library asset: never tagged, never searched. Plan + open questions in `docs/PEN_INPUT.md` | Proposed 2026-11-15 |
 | Undo/redo comes before ink (drawing without undo is unusable) and covers every canvas edit, not just strokes | Proposed 2026-11-15 |
+| **Pinterest:** browse Pinterest in its own window inside REMind (signed in with my account) and drag pins onto a board; REMind downloads the full-size original and keeps the pin link as `Asset.source` (site "Pinterest", no categories). Works for any site's dragged image URL in the desktop app. Internal REMSTUDIO use only; bulk "Grab this board" is a later step. Plan: `docs/PINTEREST.md` | Planned 2026-11-15 |
 | Imported award categories are **source data**, not my custom categories: they show in the Award tab, the inspector and search, and never touch the sidebar category list | Decided 2026-11-14 |
 
 ## Look and feel

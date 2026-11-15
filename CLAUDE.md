@@ -16,6 +16,7 @@ Project docs, one job each:
 | `docs/SQLITE_SCHEMA.md` | Planned SQLite schema for the Tauri step | Before / during the storage migration |
 | `docs/RUST_BACKEND.md` | Rust backend plan: what moves to Rust, layout, IPC rules, migration, steps | The backend design or a step changes |
 | `docs/PEN_INPUT.md` | Wacom / pen drawing on the canvas: input, ink data model, rendering, phases | Pen or ink behaviour, stroke format or phases change |
+| `docs/PINTEREST.md` | Pinterest window + drag-to-board: options, steps, fallbacks, spike results | A Pinterest step, the drop handling or its permissions change |
 
 Read a `docs/` file only when the task touches it.
 

@@ -2,7 +2,7 @@
 
 Living status. **Update at the end of every work session.** Rules live in `CLAUDE.md`, business logic in `MEMORY.md`.
 
-_Last updated: 2026-11-15 (v0.5.0 built: menus, tag borders, Library notes)_
+_Last updated: 2026-11-15 (plan: Pinterest window + drag to board)_
 
 ## Status
 
@@ -14,6 +14,8 @@ _Last updated: 2026-11-15 (v0.5.0 built: menus, tag borders, Library notes)_
 | **Hosting**       | GitHub `blondeuser/Board` (public). Latest code commit `2c5a6ff` |
 
 ## Resume here (next session)
+
+**Planned 2026-11-15: Pinterest inside REMind** (`docs/PINTEREST.md`). Open Pinterest in its own window, signed in, and drag pins onto a board (full-size download, source = pin link). Not started. Next: step 0 spike (log the drop payload from the Pinterest window on Windows, then the Mac), then steps 1-3. Ask before step 5 (docked panel, Tauri `unstable`) and step 6 (bulk grab, remote capability).
 
 **Rust backend progress (2026-11-15):** step 1 (SQLite + files + migration) and step 2 (import) are built and in 0.2.0; step 0 is only partly done (storage is behind `src/backend/`, `useBoardApp.ts` not split). Step 3 (bundled SigLIP, CPU) is in 0.3.0 too. **Next: install 0.3.0 over a real 0.1.x library and check the migration**, run `eval-search` against the Rust path, record timings (import, analysis/image, search), try DirectML, then step 4 (`.bo` in Rust).
 
@@ -108,6 +110,7 @@ _Last updated: 2026-11-15 (v0.5.0 built: menus, tag borders, Library notes)_
 - [ ] Unit test for `groupAssets(…, 'source')` and a UI smoke script (`scripts/smoke-lit.mjs`, with the proxy stubbed)
 - [ ] Honourable mentions and student winners (`/winners/hmention.php`, `/winners/student.php`; same card markup, not parsed yet)
 - [ ] Keep the entry description (it often names techniques: grazing, wall washer, uplight) for search and as weak lighting labels
+- [ ] **Pinterest** (planned 2026-11-15, `docs/PINTEREST.md`): [ ] step 0 drag spike (Windows + Mac), [ ] step 1 Pinterest window (File > Open Pinterest), [ ] step 2 URL drop → download through `fetchPublic` → `import_image` (all sites; fixes the CORS backlog item), [ ] step 3 Pinterest source data, [ ] step 4 fast repeated drops; later, ask first: [ ] step 5 docked panel, [ ] step 6 "Grab this board"
 - [ ] Other reference sites behind the same `sources/<site>/` shape (parse + client + source), e.g. IALD, Darc awards, archdaily lighting tag
 
 ### 7. Pen drawing (Wacom), planned 2026-11-15 — `docs/PEN_INPUT.md`
@@ -153,6 +156,7 @@ _Last updated: 2026-11-15 (v0.5.0 built: menus, tag borders, Library notes)_
 
 | Date | Decision | Why |
 |---|---|---|
+| 2026-11-15 | Pinterest comes in through a Pinterest window inside REMind (signed in as me) with drag and drop onto the board; no official API, no paid scraper. Bulk "Grab this board" later, separate approval. Internal use only. Plan `docs/PINTEREST.md` | API search is closed (own pins only; partner search is beta, top 10); own-board import via API needs Business account + developer app + approval, too cumbersome; scrapers break and are against Pinterest's terms |
 | 2026-11-15 | Backend moves to Rust (`src-tauri/`): SQLite + files, import, SigLIP via `ort`, search, `.bo`. UI stays React in the webview. Browser build not shipped but kept as a local dev mode (`npm run dev`, frozen TS backend, amended same day); model bundled in the installer; crates approved: rusqlite, image, fast_image_resize, sha2, rayon, zip, serde, ort, tokenizers. Plan `docs/RUST_BACKEND.md` | Speed on big libraries (LIT ~3,700 photos), native GPU inference, files on disk, offline first run. Replaces "browser build first" (2026-11-14) |
 | 2026-11-15 | Pen drawing uses Pointer Events only (no Wacom SDK); strokes are `Placement` kind `ink` (raw points + pressure), live stroke on a canvas overlay, committed as SVG; undo/redo first. Proposed, open questions in `docs/PEN_INPUT.md` §9 | Reuses selection/z-order/copy/`.bo` for free; vector stays crisp at any zoom; Pointer Events work in WebView2 and the browser build |
 | 2026-11-15 | Release rules: NSIS installer only, bump the version in `package.json` + `tauri.conf.json` + `Cargo.toml` for every build handed out, identifier never changes; manual updates until the Tauri updater + GitHub Releases | Upgrades in place keep the library; the MSI won't reinstall the same version; mixing MSI/NSIS gives two installs |
@@ -170,6 +174,9 @@ _Last updated: 2026-11-15 (v0.5.0 built: menus, tag borders, Library notes)_
 | 2026-11-14 | Imported images carry `Asset.source` (link, title, categories, credit, details) instead of auto-creating custom categories | 68 award categories per year would flood the sidebar; source data stays searchable and groupable (Award tab) and keeps photographer credits |
 
 ## Log
+
+### 2026-11-15 (plan: Pinterest)
+- Researched getting Pinterest images into REMind. Official API can't search all of Pinterest (partner search is beta, top 10 only); own-board import via OAuth judged too cumbersome. Chose a Pinterest window inside the app + drag and drop, bulk grab later. Plan in `docs/PINTEREST.md` (steps 0-6, fallbacks, risks). Docs only, no code.
 
 ### 2026-11-15 (v0.5.0 release build)
 - Version 0.5.0 in package.json, tauri.conf.json, Cargo.toml, write.ts. Built `REMind_0.5.0_x64-setup.exe` (170.70 MiB, NSIS) and the MSI; ship the NSIS only. Includes About credit, View/Board/Colour/Tags menus, tag borders, per-day Library with note cards. 81 TS tests pass. Not installed or tried on a second PC yet.
