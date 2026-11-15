@@ -75,6 +75,12 @@ impl Db {
         Ok(Value::Object(out))
     }
 
+    /// An existing image with this content hash (duplicate import check).
+    pub fn find_by_hash(&self, hash: &str) -> Res<Option<Value>> {
+        let s: Option<String> = self.0.query_row("SELECT data FROM assets WHERE hash=?1 LIMIT 1", [hash], |r| r.get(0)).optional().map_err(e)?;
+        s.map(|s| serde_json::from_str(&s).map_err(|x| x.to_string())).transpose()
+    }
+
     pub fn save_boards(&mut self, v: &[Value]) -> Res<()> {
         self.put(v, "INSERT OR REPLACE INTO boards (id, data) VALUES (?1, ?2)", |_| Ok(vec![]))
     }

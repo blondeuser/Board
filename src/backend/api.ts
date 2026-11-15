@@ -1,6 +1,7 @@
 // Desktop backend: the only file that calls the Rust commands (docs/RUST_BACKEND.md). Same shape as browser/db.ts.
 import { convertFileSrc, invoke } from '@tauri-apps/api/core'
-import type { Asset, Board, Category, Connection, Placement } from '../shared/types'
+import type { Asset, AssetSource, Board, Category, Connection, Placement } from '../shared/types'
+import { newId } from '../shared/id'
 import type { Backend } from './types'
 
 // Embeddings are Float32Array in the UI, plain number arrays in the JSON documents.
@@ -12,9 +13,16 @@ const u32 = (n: number) => new Uint8Array([n >>> 24, (n >>> 16) & 255, (n >>> 8)
 const extOf = (b: Blob) => (b.type.split('/')[1] ?? 'bin').replace(/[^a-z0-9]/gi, '').toLowerCase() || 'bin'
 
 async function addAsset(asset: Asset, blob: Blob, thumb: Blob) {
-  const head = new TextEncoder().encode(JSON.stringify({ asset: toDoc(asset), ext: extOf(blob) }))
+  const head = new TextEncoder().encode(JSON.stringify({ asset: toDoc(asset), ext: extOf(blob), thumbExt: extOf(thumb) }))
   const body = new Blob([u32(head.length), head, u32(thumb.size), thumb, blob])
   await invoke('add_asset', new Uint8Array(await body.arrayBuffer()))
+}
+
+async function importImage(blob: Blob, source?: AssetSource) {
+  const head = new TextEncoder().encode(JSON.stringify({ id: newId(), createdAt: Date.now(), source }))
+  const body = new Blob([u32(head.length), head, u32(0), blob])
+  const { asset } = await invoke<{ asset: Asset & { embedding?: number[] } }>('import_image', new Uint8Array(await body.arrayBuffer()))
+  return { asset: fromDoc(asset), thumb: (await file(asset.id, 1))! }
 }
 
 async function file(id: string, which: 0 | 1): Promise<Blob | undefined> {
@@ -44,11 +52,12 @@ export const api: Backend = {
   assets: async () => (await loadAll()).assets.map(fromDoc),
   saveAssets: (a) => save('save_assets')(a.map(toDoc)),
   addAsset,
+  importImage,
   deleteAssets: del('delete_assets'),
   blob: (id) => file(id, 0),
   thumb: (id) => file(id, 1),
   saveThumb: async (id, blob) => {
-    await invoke('save_thumb', new Uint8Array(await blob.arrayBuffer()), { headers: { 'x-asset-id': id } })
+    await invoke('save_thumb', new Uint8Array(await blob.arrayBuffer()), { headers: { 'x-asset-id': id, 'x-thumb-ext': extOf(blob) } })
   },
   placements: async () => (await loadAll()).placements,
   savePlacements: save('save_placements'),

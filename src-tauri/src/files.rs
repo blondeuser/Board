@@ -1,5 +1,5 @@
-// Library files on disk: <root>/originals/<id>.<ext>, <root>/thumbs/<id>.webp. Atomic writes (.tmp + rename).
-// shortcut: named by asset id; switch to <hash> in step 2 when import hashes in Rust.
+// Library files on disk: <root>/originals/<id>.<ext>, <root>/thumbs/<id>.<ext>. Atomic writes (.tmp + rename).
+// shortcut: named by asset id; switch to <hash> if files should be shared across duplicates.
 use std::path::{Path, PathBuf};
 
 pub struct Files(pub PathBuf);
@@ -8,14 +8,20 @@ impl Files {
     pub fn original(&self, id: &str, ext: &str) -> PathBuf {
         self.0.join("originals").join(format!("{}.{}", safe(id), safe(ext)))
     }
-    pub fn thumb(&self, id: &str) -> PathBuf {
-        self.0.join("thumbs").join(format!("{}.webp", safe(id)))
+    pub fn thumb(&self, id: &str, ext: &str) -> PathBuf {
+        self.0.join("thumbs").join(format!("{}.{}", safe(id), safe(ext)))
     }
 
-    /// The original's path whatever its extension.
-    pub fn find_original(&self, id: &str) -> Option<PathBuf> {
+    /// A file's path whatever its extension.
+    fn find(&self, dir: &str, id: &str) -> Option<PathBuf> {
         let id = safe(id);
-        std::fs::read_dir(self.0.join("originals")).ok()?.flatten().map(|f| f.path()).find(|p| p.file_stem().is_some_and(|s| *s == *id))
+        std::fs::read_dir(self.0.join(dir)).ok()?.flatten().map(|f| f.path()).find(|p| p.file_stem().is_some_and(|s| *s == *id))
+    }
+    pub fn find_original(&self, id: &str) -> Option<PathBuf> {
+        self.find("originals", id)
+    }
+    pub fn find_thumb(&self, id: &str) -> Option<PathBuf> {
+        self.find("thumbs", id)
     }
 
     pub fn write(path: &Path, bytes: &[u8]) -> Result<(), String> {
@@ -28,12 +34,9 @@ impl Files {
 
     /// Removes an image's files; a missing file is fine.
     pub fn remove_asset(&self, id: &str) {
-        std::fs::remove_file(self.thumb(id)).ok();
-        if let Ok(rd) = std::fs::read_dir(self.0.join("originals")) {
-            for f in rd.flatten() {
-                if f.path().file_stem().is_some_and(|s| s == safe(id).as_str()) {
-                    std::fs::remove_file(f.path()).ok();
-                }
+        for dir in ["originals", "thumbs"] {
+            while let Some(p) = self.find(dir, id) {
+                if std::fs::remove_file(p).is_err() { break }
             }
         }
     }
@@ -85,10 +88,10 @@ mod tests {
         let root = std::env::temp_dir().join(format!("remind-files-test-{}", std::process::id()));
         let f = Files(root.clone());
         Files::write(&f.original("a1", "jpg"), b"o").unwrap();
-        Files::write(&f.thumb("a1"), b"t").unwrap();
-        assert!(f.original("a1", "jpg").exists() && f.thumb("a1").exists());
+        Files::write(&f.thumb("a1", "jpg"), b"t").unwrap();
+        assert!(f.original("a1", "jpg").exists() && f.find_thumb("a1").is_some());
         f.remove_asset("a1");
-        assert!(!f.original("a1", "jpg").exists() && !f.thumb("a1").exists());
+        assert!(!f.original("a1", "jpg").exists() && f.find_thumb("a1").is_none());
         std::fs::remove_dir_all(root).ok();
     }
 }

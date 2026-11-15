@@ -1,4 +1,4 @@
-import type { Asset, Board, Category, Connection, Placement } from '../shared/types'
+import type { Asset, AssetSource, Board, Category, Connection, Placement } from '../shared/types'
 
 /** What the app needs from storage. Two implementations: browser/db.ts (IndexedDB, dev mode) and api.ts (Rust, desktop). */
 export interface Backend {
@@ -9,6 +9,8 @@ export interface Backend {
   assets(): Promise<Asset[]>
   saveAssets(a: Asset[]): Promise<void>
   addAsset(asset: Asset, blob: Blob, thumb: Blob): Promise<void>
+  /** Decode + thumbnail + palette + hash + store. An image already in the library (same content) comes back as itself. */
+  importImage(blob: Blob, source?: AssetSource): Promise<{ asset: Asset; thumb: Blob }>
   deleteAssets(ids: string[]): Promise<void>
   blob(id: string): Promise<Blob | undefined>
   thumb(id: string): Promise<Blob | undefined>

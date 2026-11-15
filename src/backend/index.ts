@@ -13,7 +13,7 @@ const pick = (): Promise<Backend> =>
     : import('./browser/db').then((m) => m.db))
 
 const methods = [
-  'clearAll', 'boards', 'saveBoards', 'deleteBoard', 'assets', 'saveAssets', 'addAsset', 'deleteAssets', 'blob', 'thumb',
+  'clearAll', 'boards', 'saveBoards', 'deleteBoard', 'assets', 'saveAssets', 'addAsset', 'importImage', 'deleteAssets', 'blob', 'thumb',
   'saveThumb', 'placements', 'savePlacements', 'deletePlacements', 'connections', 'saveConnections', 'deleteConnections',
   'categories', 'saveCategories', 'deleteCategory',
 ] as const

@@ -1,4 +1,5 @@
-import type { Asset, Board, Category, Connection, Placement } from '../../shared/types'
+import { importImage } from '../../items/importImage'
+import type { Asset, AssetSource, Board, Category, Connection, Placement } from '../../shared/types'
 
 // IndexedDB for the browser build. Swapped for SQLite + files in the Tauri step (see PROGRESS).
 const DB_NAME = 'board'
@@ -90,6 +91,12 @@ export const db = {
       t.objectStore('blobs').put(blob, asset.id)
       t.objectStore('thumbs').put(thumb, asset.id)
     }),
+  importImage: async (blob: Blob, source?: AssetSource) => {
+    const { asset, thumb } = await importImage(blob)
+    const full = source ? { ...asset, source } : asset
+    await db.addAsset(full, blob, thumb)
+    return { asset: full, thumb }
+  },
   deleteAssets: (ids: string[]) =>
     tx(['assets', 'blobs', 'thumbs'], 'readwrite', (t) =>
       ids.forEach((id) => {

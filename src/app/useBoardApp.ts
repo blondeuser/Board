@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { NOTE_GREYS, NOTE_H, NOTE_TINTS, NOTE_W, noteHeight, type Asset, type AssetSource, type Board, type Category, type Connection, type Placement, type ShapeKind, type ViewState } from '../shared/types'
 import { newId } from '../shared/id'
 import { db } from '../backend'
-import { importImage, makeThumbnail } from '../items/importImage'
+import { makeThumbnail } from '../items/importImage'
 import { gridLayout } from '../canvas/viewport'
 import { alignPatches, reorderZ, type AlignMode, type OrderMode } from '../canvas/arrange'
 import { analyseImage, embedText, setModelProgressListener } from '../categorize/style/classifier'
@@ -240,12 +240,8 @@ export function useBoardApp() {
   const importBlobs = useCallback(
     async (blobs: Blob[], center: { x: number; y: number } | null, opts: { sources?: (AssetSource | undefined)[]; quiet?: boolean } = {}): Promise<string[]> => {
       const boardId = latest.current.activeId
-      const done = await Promise.allSettled(blobs.map(importImage))
-      const ok = done.flatMap((r, i) => {
-        if (r.status !== 'fulfilled') return []
-        const source = opts.sources?.[i]
-        return [source ? { ...r.value, asset: { ...r.value.asset, source } } : r.value]
-      })
+      const done = await Promise.allSettled(blobs.map((b, i) => db.importImage(b, opts.sources?.[i])))
+      const ok = done.flatMap((r) => (r.status === 'fulfilled' ? [r.value] : []))
       if (ok.length < blobs.length && !opts.quiet) notify(`${blobs.length - ok.length} file(s) could not be read as images`)
       if (!ok.length) return []
       const sizes = ok.map(({ asset }) => {
@@ -259,7 +255,6 @@ export function useBoardApp() {
             id: newId(), boardId, assetId: asset.id, x: pos[i].x, y: pos[i].y, w: sizes[i].w, h: sizes[i].h, z: ++z,
           }))
         : []
-      await Promise.all(ok.map(({ asset, blob, thumb }) => db.addAsset(asset, blob, thumb)))
       if (created.length) await db.savePlacements(created)
       const added = Object.fromEntries(ok.map(({ asset }) => [asset.id, asset]))
       latest.current.assets = { ...latest.current.assets, ...added } // addToBoard right after an import must see them
