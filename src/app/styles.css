@@ -6,6 +6,8 @@
   --bg: #abbab9;
   --panel: #fefefe;
   --panel-2: #98a9a8;
+  --side-bg: #f1eeea; /* off white */
+  --side-hover: #e1ddd6;
   --ink: #1e1e1e;
   --line: rgb(30 30 30 / 0.3);
   --text: #1e1e1e;
@@ -41,6 +43,9 @@ h3 { margin: 16px 0 8px; }
 .shell.collapsed { grid-template-columns: 0 1fr; }
 .side { grid-column: 1; grid-row: 1; min-width: 0; overflow: hidden; display: flex; flex-direction: column; }
 .side > .sidebar { width: 224px; flex: 1; min-height: 0; }
+.side { background: var(--side-bg); }
+.side .list li:hover, .side .icon:hover:not(:disabled) { background: var(--side-hover); }
+.side .swatch.on { box-shadow: 0 0 0 2px var(--side-bg), 0 0 0 4px var(--text); }
 /* Progressive blur: content scrolling under the top and bottom edge of the side panel softens gradually (masked backdrop blur). */
 .side { position: relative; }
 .side::before, .side::after { content: ''; position: absolute; left: 0; right: 0; height: 36px; z-index: 2; pointer-events: none; -webkit-backdrop-filter: blur(5px); backdrop-filter: blur(5px); }
@@ -48,7 +53,7 @@ h3 { margin: 16px 0 8px; }
 .side::after { bottom: 0; -webkit-mask-image: linear-gradient(to top, #000 10%, transparent); mask-image: linear-gradient(to top, #000 10%, transparent); }
 main { grid-column: 2; grid-row: 1; }
 /* collapsed: the sidebar floats over the canvas, off-screen until the mouse reaches the left edge */
-.shell.collapsed .side { position: absolute; z-index: 25; top: 0; bottom: 0; left: 0; width: 224px; overflow: visible; background: var(--bg); box-shadow: var(--shadow-md); transform: translateX(-102%); transition: transform 0.18s ease; }
+.shell.collapsed .side { position: absolute; z-index: 25; top: 0; bottom: 0; left: 0; width: 224px; overflow: visible; background: var(--side-bg); box-shadow: var(--shadow-md); transform: translateX(-102%); transition: transform 0.18s ease; }
 .shell.collapsed .side.peek { transform: none; }
 .edge { position: absolute; z-index: 24; top: 0; bottom: 0; left: 0; width: 10px; }
 .menubar .sidebar-toggle { width: 26px; height: 22px; border-radius: 5px; margin-right: 2px; }
@@ -284,6 +289,8 @@ button.status { border: 0; font: inherit; font-size: 15px; cursor: default; }
   --bg: #151c28;
   --panel: #1f2a3b;
   --panel-2: #2b394f;
+  --side-bg: #33263a; /* muted plum-rose on the blue-slate */
+  --side-hover: #43324b;
   --ink: #d7e2f1;
   --line: rgb(215 226 241 / 0.22);
   --text: #d7e2f1;
@@ -306,6 +313,8 @@ button.status { border: 0; font: inherit; font-size: 15px; cursor: default; }
 :root[data-theme^='concrete'] .menubar { background: var(--bg); box-shadow: none; padding: 0; gap: 4px; height: 30px; align-items: stretch; }
 :root[data-theme^='concrete'] .menubar .app-name { background: var(--panel); display: flex; align-items: center; padding: 0 10px; }
 :root[data-theme^='concrete'] .menu-title { background: var(--panel); height: auto; padding: 0 10px; }
+:root[data-theme^='concrete'] .menubar .sidebar-toggle { background: var(--panel); color: var(--text); width: 40px; height: auto; margin: 0; border-radius: 0; }
+:root[data-theme^='concrete'] .menubar .sidebar-toggle:hover, :root[data-theme^='concrete'] .menubar .sidebar-toggle[aria-pressed='false']:hover { background: var(--ink); color: var(--panel); }
 :root[data-theme^='concrete'] .menu-title:hover, :root[data-theme^='concrete'] .menu-title.open,
 :root[data-theme^='concrete'] .menu-list button:hover:not(:disabled), :root[data-theme^='concrete'] .ctx-sub.open > button:not(:disabled) { background: var(--ink); color: var(--panel); }
 :root[data-theme^='concrete'] .menu-list { padding: 0; background: var(--panel); }

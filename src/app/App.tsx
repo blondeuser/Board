@@ -283,10 +283,11 @@ export function App() {
           onDropData={(dt, x, y) => void ingest(dt, x, y)}
         />
         <div className="tools" onPointerDown={(e) => e.stopPropagation()}>
-          <button className="icon" title="New note" disabled={bento} onClick={() => app.addNote(worldPointAt())}><NoteIcon /></button>
           <button className={'icon' + (bento ? ' on' : '')} title={bento ? 'Back to free layout' : 'Cards mode (bento grid)'} aria-pressed={bento} onClick={toggleBento}><BentoIcon /></button>
         </div>
         {!bento && <div className="drawbar" onPointerDown={(e) => e.stopPropagation()}>
+          <button className="icon" title="New note" onClick={() => app.addNote(worldPointAt())}><NoteIcon /></button>
+          <hr />
           <button className={'icon' + (linked ? ' on' : '')} title={bento ? 'Links are only in free layout' : linked ? 'Remove the line between the 2 selected cards' : 'Draw a curved line between the 2 selected cards'} disabled={bento || selectedPlacements.length !== 2} onClick={() => app.toggleConnection(selectedPlacements[0].id, selectedPlacements[1].id)}><LinkIcon /></button>
           <hr />
           {SHAPE_TOOLS.map(([id, label, Icon]) => (
