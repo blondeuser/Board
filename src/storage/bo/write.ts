@@ -4,7 +4,7 @@ import type { Asset, Board, Category, Placement } from '../../shared/types'
 export const BO_FORMAT = 'remstudio-board'
 /** Highest formatVersion this app can read. Files without ink or text are still written as 1 so older apps open them. */
 export const BO_VERSION = 2
-export const APP_VERSION = '0.4.0' // keep in step with package.json
+export const APP_VERSION = '0.5.0' // keep in step with package.json
 
 /** An asset as stored in `assets.json`: no embedding (rebuilt on import), plus the hash and extension of its original file. */
 export type BoAsset = Omit<Asset, 'embedding' | 'embeddingModel'> & { hash: string; ext: string }

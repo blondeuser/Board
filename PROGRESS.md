@@ -2,7 +2,7 @@
 
 Living status. **Update at the end of every work session.** Rules live in `CLAUDE.md`, business logic in `MEMORY.md`.
 
-_Last updated: 2026-11-15 (v0.4.0: pen ink, text, .bo in Rust, CSP)_
+_Last updated: 2026-11-15 (v0.5.0 built: menus, tag borders, Library notes)_
 
 ## Status
 
@@ -170,6 +170,9 @@ _Last updated: 2026-11-15 (v0.4.0: pen ink, text, .bo in Rust, CSP)_
 | 2026-11-14 | Imported images carry `Asset.source` (link, title, categories, credit, details) instead of auto-creating custom categories | 68 award categories per year would flood the sidebar; source data stays searchable and groupable (Award tab) and keeps photographer credits |
 
 ## Log
+
+### 2026-11-15 (v0.5.0 release build)
+- Version 0.5.0 in package.json, tauri.conf.json, Cargo.toml, write.ts. Built `REMind_0.5.0_x64-setup.exe` (170.70 MiB, NSIS) and the MSI; ship the NSIS only. Includes About credit, View/Board/Colour/Tags menus, tag borders, per-day Library with note cards. 81 TS tests pass. Not installed or tried on a second PC yet.
 
 ### 2026-11-15 (Library: notes, text and link badges)
 - **Check result:** the Library listed only images; notes and text boxes (placements on boards) never appeared, and images imported from a web page showed no link indicator. **Now (revised: no separate section):** notes and text boxes are cards **in the same grid as the images**, sorted by date with them (All tab: DD/MM/YY sections; Tag/Type/Colour/Award tabs: they sit in the "No tag" / "No type" / "No colour" sections). New notes and text get a `createdAt` (new optional Placement field); older ones use their board's date. Note cards show the note colour (or the text in its own font and weight) and the board name; clicking opens the board with the item selected; they are not selectable/deletable from the Library. Hidden while searching or filtering (they have no tags). Images from a link or site import get the **link badge** (top-left, opens the page) in the Library grid like on the canvas. Browser-checked with a note + a text box (cards show, click opens the board and selects it); the link badge is typed and compiled but **not seen on screen** (needs an image with a source URL). Not done: search over note text, note preview tiles in the Type/Colour/Award stacks, Library select/delete for notes. Not committed.
