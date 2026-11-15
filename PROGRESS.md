@@ -2,7 +2,7 @@
 
 Living status. **Update at the end of every work session.** Rules live in `CLAUDE.md`, business logic in `MEMORY.md`.
 
-_Last updated: 2026-11-15 (v0.7.0: mouse as pen)_
+_Last updated: 2026-11-15 (Mac: trackpad pinch fix)_
 
 ## Status
 
@@ -178,6 +178,15 @@ _Last updated: 2026-11-15 (v0.7.0: mouse as pen)_
 | 2026-11-14 | Imported images carry `Asset.source` (link, title, categories, credit, details) instead of auto-creating custom categories | 68 award categories per year would flood the sidebar; source data stays searchable and groupable (Award tab) and keeps photographer credits |
 
 ## Log
+
+### 2026-11-15 (Mac: trackpad pinch fix)
+- `Canvas.tsx`: added `gesturestart` / `gesturechange` listeners (WebKit's pinch events, scale relative to gesturestart, zoom around the cursor) next to the wheel handler; Chromium's ctrl+wheel path is unchanged. Typecheck + 82 tests pass (`4098533`, with the Mac build config). **Not verified in WKWebView:** the dev tooling can't drive it (`smoke-desktop.mjs` uses WebView2's remote-debugging port; no CDP on macOS), so this needs a hand test: `npm run tauri dev`, pinch on the canvas. Not committed.
+
+### 2026-11-15 (Mac port: first build works)
+- Installed Rust 1.100 (rustup, minimal) on the MacBook, `npm install`, `fetch-model.mjs`. `npm run tauri build` first failed at link: `___isPlatformVersionAtLeast` undefined (ONNX Runtime's CoreML code needs clang's runtime lib). Fixed in `src-tauri/build.rs`: on macOS, link `libclang_rt.osx.a` from `xcrun clang -print-resource-dir`. Then built: `REMind.app` (242 MiB, ad-hoc signed, model inside `Contents/Resources/resources/models/siglip-base-patch16-224/`) and `REMind_0.7.0_aarch64.dmg` (175 MiB). Typecheck, 82 TS tests and 38 cargo tests (incl. SigLIP parity on arm64) pass. The built app starts and creates `~/Library/Application Support/com.remstudio.remind/` (`board.sqlite`, `library/`, marker). Linker prints "built for newer macOS (13.4) than being linked (13.0)" warnings from `ort`; harmless so far, raise `minimumSystemVersion` to 13.4 if it ever misbehaves on 13.0-13.3. **Not done:** UI never looked at on the Mac (WKWebView), import/search/`.bo` not tried in the app, pen/trackpad pinch, Pinterest panel, file association, install on the colleague's Mac. Shortcuts already accept `metaKey`; `Canvas.tsx:103` pinch-zoom uses `ctrlKey` wheel events, which Safari/WKWebView sends as `gesture*` events instead, so trackpad pinch is likely broken there. Not committed.
+
+### 2026-11-15 (Mac build config)
+- `tauri.conf.json`: added bundle targets `app` + `dmg` and a `macOS` block (`signingIdentity: "-"` ad-hoc, `minimumSystemVersion` 13.0). The SigLIP model needed no change: `bundle.resources` already has `resources/models/**/*` and `lib.rs` resolves it via `BaseDirectory::Resource`. `docs/MAC_BUILD.md` §2 corrected (it said the model was not bundled) and `node scripts/fetch-model.mjs` added to the Mac setup. **Not done:** no Mac build run, model files not fetched on the Mac, resource path inside the `.app` unchecked, Mac checks (shortcuts, pen, Pinterest panel, `.bo` association) still open. Not committed.
 
 ### 2026-11-15 (v0.7.0: mouse draws as a pen, release build)
 - Pen toolbar has a **Mouse draws** button (`mouseInk` in `App.tsx` / `Canvas.tsx`, `MouseIcon`): with pen mode on, the mouse and touch draw ink instead of editing items (left button only, steady pressure 0.8, the eraser button still wins). Off by default, not remembered between sessions. Typecheck clean; not checked with a real Wacom or touch screen. Version 0.7.0 in package.json, tauri.conf.json, Cargo.toml, write.ts.

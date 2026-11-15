@@ -107,8 +107,25 @@ export function Canvas(props: Props) {
         onView({ ...v, x: v.x - e.deltaX, y: v.y - e.deltaY })
       }
     }
+    // Safari/WKWebView (macOS app) reports trackpad pinch as gesture events, not ctrl+wheel; scale is relative to gesturestart.
+    let startZoom = 1
+    const onGestureStart = (e: Event) => { e.preventDefault(); startZoom = live.current.view.zoom }
+    const onGestureChange = (e: Event) => {
+      e.preventDefault()
+      const { view: v, onView, locked } = live.current
+      if (locked) return
+      const g = e as Event & { scale: number; clientX: number; clientY: number }
+      const rect = el.getBoundingClientRect()
+      onView(zoomAt(v, g.clientX - rect.left, g.clientY - rect.top, clampZoom(startZoom * g.scale)))
+    }
     el.addEventListener('wheel', onWheel, { passive: false })
-    return () => el.removeEventListener('wheel', onWheel)
+    el.addEventListener('gesturestart', onGestureStart)
+    el.addEventListener('gesturechange', onGestureChange)
+    return () => {
+      el.removeEventListener('wheel', onWheel)
+      el.removeEventListener('gesturestart', onGestureStart)
+      el.removeEventListener('gesturechange', onGestureChange)
+    }
   }, [viewportRef])
 
   useEffect(() => {

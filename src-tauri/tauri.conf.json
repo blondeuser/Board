@@ -39,8 +39,14 @@
     "active": true,
     "targets": [
       "nsis",
-      "msi"
+      "msi",
+      "app",
+      "dmg"
     ],
+    "macOS": {
+      "signingIdentity": "-",
+      "minimumSystemVersion": "13.0"
+    },
     "publisher": "REM Studio",
     "copyright": "REM Studio",
     "category": "GraphicsAndDesign",

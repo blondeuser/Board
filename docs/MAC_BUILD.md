@@ -1,6 +1,6 @@
 # REMind on macOS — port plan and build guide
 
-Status: **planned, not built yet** (2026-11-15). Nothing in the code has changed for Mac so far.
+Status: **first Mac build works** (2026-11-15): `.app` + `.dmg` build and the app starts; UI checks in WKWebView (§3) still open. The only code change was `src-tauri/build.rs` (links `libclang_rt.osx.a`, needed by ONNX Runtime's CoreML code), plus the config in §1.
 
 ## Scope
 
@@ -31,13 +31,9 @@ The Rust backend (`src-tauri/src`) has no Windows-only code:
   ```
   `"-"` = ad-hoc signature. Apple Silicon refuses to run unsigned code, so this is required even for private use.
 
-### 2. Bundle the SigLIP model (fixes Windows too)
-- The model files in `src-tauri/resources/models/siglip-base-patch16-224/` (~210 MB) are **not** in `bundle.resources` yet, so the installed app would not have them on either platform.
-- Add to `bundle`:
-  ```json
-  "resources": { "resources/models/": "models/" }
-  ```
-- Load from `app.path().resource_dir()?.join("models/siglip-base-patch16-224")` when `analyze` is wired into the commands. On Mac this resolves to `REMind.app/Contents/Resources/models/...`.
+### 2. SigLIP model (already bundled, same config for Mac)
+- `bundle.resources` already has `resources/models/**/*` (since 0.3.0) and `lib.rs` resolves `resources/models/siglip-base-patch16-224` through `BaseDirectory::Resource`. On Mac that is `REMind.app/Contents/Resources/resources/models/...`. Nothing to change in code.
+- The files are not in git: run `node scripts/fetch-model.mjs` (~210 MB) once on the Mac **before** `npm run tauri build`, or the app ships without the model.
 
 ### 3. Frontend checks (WebKit, not Chromium)
 On Mac the UI runs in WKWebView (Safari engine) instead of WebView2 (Chromium). Test:
@@ -57,6 +53,7 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 git clone https://github.com/blondeuser/Board.git
 cd Board
 npm install
+node scripts/fetch-model.mjs   # model files are not in git
 ```
 
 Each build:
